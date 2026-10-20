@@ -246,3 +246,15 @@ test('сессия сохраняется в JSONL и восстанавлива
   assert.equal(resumed.messages.length, 4);
   assert.equal(store.list()[0]!.title, 'прочитай');
 });
+
+test('системный промпт: соглашения проекта (ES-модули) и поиск использований', async () => {
+  const dir = tempProject({ 'package.json': '{"type":"module","scripts":{"test":"node --test"}}', 'src/a.js': 'export const a = 1;\n' });
+  const { agent } = mkAgent(dir, [{ text: 'ok' }]);
+  assert.match(agent.systemPrompt, /ES modules: write import\/export/);
+  assert.match(agent.systemPrompt, /node:test/);
+  assert.match(agent.systemPrompt, /grep for every place it is used/);
+  const cjs = tempProject({ 'package.json': '{}', 'index.js': 'module.exports = 1;\n' });
+  assert.match(mkAgent(cjs, [{ text: 'ok' }]).agent.systemPrompt, /CommonJS/);
+  const none = tempProject({ 'main.py': 'print(1)\n' });
+  assert.doesNotMatch(mkAgent(none, [{ text: 'ok' }]).agent.systemPrompt, /ES modules|CommonJS/);
+});

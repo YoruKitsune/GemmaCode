@@ -10,6 +10,8 @@ const LANG: Record<string, string> = {
 };
 
 export interface ProjectSummary {
+  /** Соглашения проекта, которые модель иначе угадывает неверно (система модулей и т. п.). */
+  conventions: string[];
   tree: string[];
   languages: [string, number][];
   commands: string[];
@@ -26,6 +28,7 @@ export function summarizeProject(cwd: string, opts: { maxTreeLines?: number } = 
     if (lang && lang !== 'JSON' && lang !== 'Markdown' && lang !== 'YAML' && lang !== 'TOML') counts.set(lang, (counts.get(lang) ?? 0) + 1);
   }
   return {
+    conventions: detectConventions(cwd, files),
     tree: buildTree(files, maxLines),
     languages: [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4),
     commands: detectCommands(cwd),
@@ -77,10 +80,29 @@ function detectCommands(cwd: string): string[] {
   return out.slice(0, 6);
 }
 
+/** Система модулей JavaScript и тестовый раннер: типичная причина «код написан не в том стиле». */
+export function detectConventions(cwd: string, files: string[]): string[] {
+  const out: string[] = [];
+  const hasJs = files.some((f) => /\.(m?js|cjs|jsx)$/.test(f));
+  const pkg = join(cwd, 'package.json');
+  if (hasJs && existsSync(pkg)) {
+    try {
+      const p = JSON.parse(readFileSync(pkg, 'utf8')) as { type?: string; scripts?: Record<string, string> };
+      out.push(p.type === 'module' ? 'JavaScript uses ES modules: write import/export, never require/module.exports; local imports need the .js extension.' : 'JavaScript uses CommonJS (require / module.exports) unless a file is .mjs.');
+      const test = p.scripts?.test ?? '';
+      if (/node\s+--test/.test(test)) out.push('Tests use the node:test runner and node:assert.');
+    } catch {
+      // package.json повреждён
+    }
+  }
+  return out;
+}
+
 const truncate = (s: string): string => (s.length > 60 ? `${s.slice(0, 59)}…` : s);
 
 export function formatSummary(s: ProjectSummary): string {
   const parts = [`Project files (${s.fileCount}):`, ...s.tree.map((l) => l)];
+  if (s.conventions.length) parts.push(...s.conventions);
   if (s.languages.length) parts.push(`Languages: ${s.languages.map(([l, n]) => `${l} (${n})`).join(', ')}`);
   if (s.commands.length) parts.push(`Commands: ${s.commands.join('; ')}`);
   return parts.join('\n');
