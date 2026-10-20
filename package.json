@@ -1,0 +1,19 @@
+{
+  "name": "gemmacode",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Локальный кроссплатформенный ИИ-агент на Gemma 4",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "build": "npm run build --workspaces --if-present",
+    "bench": "node bench/bench.mjs"
+  }
+}

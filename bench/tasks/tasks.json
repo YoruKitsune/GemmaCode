@@ -1,0 +1,2181 @@
+[
+ {
+  "id": "read-01",
+  "category": "read",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Show me the contents of src/main.ts."
+   }
+  ],
+  "expect": {
+   "tool": "read_file",
+   "args": {
+    "path": {
+     "eq": "src/main.ts"
+    }
+   }
+  }
+ },
+ {
+  "id": "read-02",
+  "category": "read",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Открой файл package.json и покажи, что внутри."
+   }
+  ],
+  "expect": {
+   "tool": "read_file",
+   "args": {
+    "path": {
+     "eq": "package.json"
+    }
+   }
+  }
+ },
+ {
+  "id": "read-03",
+  "category": "read",
+  "messages": [
+   {
+    "role": "user",
+    "content": "What's in README.md?"
+   }
+  ],
+  "expect": {
+   "tool": "read_file",
+   "args": {
+    "path": {
+     "eq": "README.md"
+    }
+   }
+  }
+ },
+ {
+  "id": "read-04",
+  "category": "read",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Прочитай src/utils/date.ts."
+   }
+  ],
+  "expect": {
+   "tool": "read_file",
+   "args": {
+    "path": {
+     "eq": "src/utils/date.ts"
+    }
+   }
+  }
+ },
+ {
+  "id": "read-05",
+  "category": "read",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Show me the contents of tests/api.test.ts."
+   }
+  ],
+  "expect": {
+   "tool": "read_file",
+   "args": {
+    "path": {
+     "eq": "tests/api.test.ts"
+    }
+   }
+  }
+ },
+ {
+  "id": "read-06",
+  "category": "read",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Открой файл config/settings.yaml и покажи, что внутри."
+   }
+  ],
+  "expect": {
+   "tool": "read_file",
+   "args": {
+    "path": {
+     "eq": "config/settings.yaml"
+    }
+   }
+  }
+ },
+ {
+  "id": "read-07",
+  "category": "read",
+  "messages": [
+   {
+    "role": "user",
+    "content": "What's in src/server.py?"
+   }
+  ],
+  "expect": {
+   "tool": "read_file",
+   "args": {
+    "path": {
+     "eq": "src/server.py"
+    }
+   }
+  }
+ },
+ {
+  "id": "read-08",
+  "category": "read",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Прочитай Makefile."
+   }
+  ],
+  "expect": {
+   "tool": "read_file",
+   "args": {
+    "path": {
+     "eq": "Makefile"
+    }
+   }
+  }
+ },
+ {
+  "id": "read-09",
+  "category": "read",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Show me the contents of docs/setup.md."
+   }
+  ],
+  "expect": {
+   "tool": "read_file",
+   "args": {
+    "path": {
+     "eq": "docs/setup.md"
+    }
+   }
+  }
+ },
+ {
+  "id": "read-10",
+  "category": "read",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Открой файл src/App.tsx и покажи, что внутри."
+   }
+  ],
+  "expect": {
+   "tool": "read_file",
+   "args": {
+    "path": {
+     "eq": "src/App.tsx"
+    }
+   }
+  }
+ },
+ {
+  "id": "read-11",
+  "category": "read",
+  "messages": [
+   {
+    "role": "user",
+    "content": "What's in go.mod?"
+   }
+  ],
+  "expect": {
+   "tool": "read_file",
+   "args": {
+    "path": {
+     "eq": "go.mod"
+    }
+   }
+  }
+ },
+ {
+  "id": "read-12",
+  "category": "read",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Прочитай Cargo.toml."
+   }
+  ],
+  "expect": {
+   "tool": "read_file",
+   "args": {
+    "path": {
+     "eq": "Cargo.toml"
+    }
+   }
+  }
+ },
+ {
+  "id": "list-01",
+  "category": "list",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Show me the top-level layout of the project."
+   }
+  ],
+  "expect": {
+   "tool": "list_dir",
+   "args": {
+    "path": {
+     "regex": "^(\\.|\\./|)$"
+    }
+   }
+  }
+ },
+ {
+  "id": "list-02",
+  "category": "list",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Покажи список файлов в src."
+   }
+  ],
+  "expect": {
+   "tool": "list_dir",
+   "args": {
+    "path": {
+     "regex": "^\\.?/?src/?$"
+    }
+   }
+  }
+ },
+ {
+  "id": "list-03",
+  "category": "list",
+  "messages": [
+   {
+    "role": "user",
+    "content": "What files are in src/components?"
+   }
+  ],
+  "expect": {
+   "tool": "list_dir",
+   "args": {
+    "path": {
+     "regex": "^\\.?/?src\\/components/?$"
+    }
+   }
+  }
+ },
+ {
+  "id": "list-04",
+  "category": "list",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Покажи список файлов в tests."
+   }
+  ],
+  "expect": {
+   "tool": "list_dir",
+   "args": {
+    "path": {
+     "regex": "^\\.?/?tests/?$"
+    }
+   }
+  }
+ },
+ {
+  "id": "list-05",
+  "category": "list",
+  "messages": [
+   {
+    "role": "user",
+    "content": "What files are in docs?"
+   }
+  ],
+  "expect": {
+   "tool": "list_dir",
+   "args": {
+    "path": {
+     "regex": "^\\.?/?docs/?$"
+    }
+   }
+  }
+ },
+ {
+  "id": "list-06",
+  "category": "list",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Покажи список файлов в config."
+   }
+  ],
+  "expect": {
+   "tool": "list_dir",
+   "args": {
+    "path": {
+     "regex": "^\\.?/?config/?$"
+    }
+   }
+  }
+ },
+ {
+  "id": "list-07",
+  "category": "list",
+  "messages": [
+   {
+    "role": "user",
+    "content": "What files are in scripts?"
+   }
+  ],
+  "expect": {
+   "tool": "list_dir",
+   "args": {
+    "path": {
+     "regex": "^\\.?/?scripts/?$"
+    }
+   }
+  }
+ },
+ {
+  "id": "list-08",
+  "category": "list",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Покажи список файлов в packages/core."
+   }
+  ],
+  "expect": {
+   "tool": "list_dir",
+   "args": {
+    "path": {
+     "regex": "^\\.?/?packages\\/core/?$"
+    }
+   }
+  }
+ },
+ {
+  "id": "glob-01",
+  "category": "glob",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Find all TypeScript files in the project."
+   }
+  ],
+  "expect": {
+   "tool": "glob",
+   "args": {
+    "pattern": {
+     "regex": "\\.ts\\b"
+    }
+   }
+  }
+ },
+ {
+  "id": "glob-02",
+  "category": "glob",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Найди все файлы Python в проекте."
+   }
+  ],
+  "expect": {
+   "tool": "glob",
+   "args": {
+    "pattern": {
+     "regex": "\\.py\\b"
+    }
+   }
+  }
+ },
+ {
+  "id": "glob-03",
+  "category": "glob",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Find all Markdown files in the project."
+   }
+  ],
+  "expect": {
+   "tool": "glob",
+   "args": {
+    "pattern": {
+     "regex": "\\.md\\b"
+    }
+   }
+  }
+ },
+ {
+  "id": "glob-04",
+  "category": "glob",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Найди все файлы JSON в проекте."
+   }
+  ],
+  "expect": {
+   "tool": "glob",
+   "args": {
+    "pattern": {
+     "regex": "\\.json\\b"
+    }
+   }
+  }
+ },
+ {
+  "id": "glob-05",
+  "category": "glob",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Find all TSX files in the project."
+   }
+  ],
+  "expect": {
+   "tool": "glob",
+   "args": {
+    "pattern": {
+     "regex": "\\.tsx\\b"
+    }
+   }
+  }
+ },
+ {
+  "id": "glob-06",
+  "category": "glob",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Найди все файлы CSS в проекте."
+   }
+  ],
+  "expect": {
+   "tool": "glob",
+   "args": {
+    "pattern": {
+     "regex": "\\.css\\b"
+    }
+   }
+  }
+ },
+ {
+  "id": "glob-07",
+  "category": "glob",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Find all YAML files in the project."
+   }
+  ],
+  "expect": {
+   "tool": "glob",
+   "args": {
+    "pattern": {
+     "regex": "\\.yaml\\b"
+    }
+   }
+  }
+ },
+ {
+  "id": "glob-08",
+  "category": "glob",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Найди все файлы Go в проекте."
+   }
+  ],
+  "expect": {
+   "tool": "glob",
+   "args": {
+    "pattern": {
+     "regex": "\\.go\\b"
+    }
+   }
+  }
+ },
+ {
+  "id": "glob-09",
+  "category": "glob",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Find all Rust files in the project."
+   }
+  ],
+  "expect": {
+   "tool": "glob",
+   "args": {
+    "pattern": {
+     "regex": "\\.rs\\b"
+    }
+   }
+  }
+ },
+ {
+  "id": "glob-10",
+  "category": "glob",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Найди все файлы shell в проекте."
+   }
+  ],
+  "expect": {
+   "tool": "glob",
+   "args": {
+    "pattern": {
+     "regex": "\\.sh\\b"
+    }
+   }
+  }
+ },
+ {
+  "id": "grep-01",
+  "category": "grep",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Where is handleRequest used?"
+   }
+  ],
+  "expect": {
+   "tool": "grep",
+   "args": {
+    "pattern": {
+     "contains": "handleRequest"
+    }
+   }
+  }
+ },
+ {
+  "id": "grep-02",
+  "category": "grep",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Найди все упоминания parseConfig в коде."
+   }
+  ],
+  "expect": {
+   "tool": "grep",
+   "args": {
+    "pattern": {
+     "contains": "parseConfig"
+    }
+   }
+  }
+ },
+ {
+  "id": "grep-03",
+  "category": "grep",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Where is TODO used?"
+   }
+  ],
+  "expect": {
+   "tool": "grep",
+   "args": {
+    "pattern": {
+     "contains": "TODO"
+    }
+   }
+  }
+ },
+ {
+  "id": "grep-04",
+  "category": "grep",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Найди все упоминания formatDate в коде."
+   }
+  ],
+  "expect": {
+   "tool": "grep",
+   "args": {
+    "pattern": {
+     "contains": "formatDate"
+    }
+   }
+  }
+ },
+ {
+  "id": "grep-05",
+  "category": "grep",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Where is UserService used?"
+   }
+  ],
+  "expect": {
+   "tool": "grep",
+   "args": {
+    "pattern": {
+     "contains": "UserService"
+    }
+   }
+  }
+ },
+ {
+  "id": "grep-06",
+  "category": "grep",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Найди все упоминания connectDb в коде."
+   }
+  ],
+  "expect": {
+   "tool": "grep",
+   "args": {
+    "pattern": {
+     "contains": "connectDb"
+    }
+   }
+  }
+ },
+ {
+  "id": "grep-07",
+  "category": "grep",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Where is retryCount used?"
+   }
+  ],
+  "expect": {
+   "tool": "grep",
+   "args": {
+    "pattern": {
+     "contains": "retryCount"
+    }
+   }
+  }
+ },
+ {
+  "id": "grep-08",
+  "category": "grep",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Найди все упоминания useAuth в коде."
+   }
+  ],
+  "expect": {
+   "tool": "grep",
+   "args": {
+    "pattern": {
+     "contains": "useAuth"
+    }
+   }
+  }
+ },
+ {
+  "id": "grep-09",
+  "category": "grep",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Where is renderChart used?"
+   }
+  ],
+  "expect": {
+   "tool": "grep",
+   "args": {
+    "pattern": {
+     "contains": "renderChart"
+    }
+   }
+  }
+ },
+ {
+  "id": "grep-10",
+  "category": "grep",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Найди все упоминания MAX_RETRIES в коде."
+   }
+  ],
+  "expect": {
+   "tool": "grep",
+   "args": {
+    "pattern": {
+     "contains": "MAX_RETRIES"
+    }
+   }
+  }
+ },
+ {
+  "id": "grep-11",
+  "category": "grep",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Where is onError used?"
+   }
+  ],
+  "expect": {
+   "tool": "grep",
+   "args": {
+    "pattern": {
+     "contains": "onError"
+    }
+   }
+  }
+ },
+ {
+  "id": "grep-12",
+  "category": "grep",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Найди все упоминания loadPlugins в коде."
+   }
+  ],
+  "expect": {
+   "tool": "grep",
+   "args": {
+    "pattern": {
+     "contains": "loadPlugins"
+    }
+   }
+  }
+ },
+ {
+  "id": "shell-01",
+  "category": "shell",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Run the unit tests."
+   }
+  ],
+  "expect": {
+   "tool": "shell",
+   "args": {
+    "command": {
+     "regex": "(npm|pnpm|yarn|bun)\\s+(run\\s+)?test|pytest|vitest|jest"
+    }
+   }
+  }
+ },
+ {
+  "id": "shell-02",
+  "category": "shell",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Show the git status."
+   }
+  ],
+  "expect": {
+   "tool": "shell",
+   "args": {
+    "command": {
+     "regex": "git\\s+status"
+    }
+   }
+  }
+ },
+ {
+  "id": "shell-03",
+  "category": "shell",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Install the project dependencies with npm."
+   }
+  ],
+  "expect": {
+   "tool": "shell",
+   "args": {
+    "command": {
+     "regex": "npm\\s+(install|i|ci)\\b"
+    }
+   }
+  }
+ },
+ {
+  "id": "shell-04",
+  "category": "shell",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Create a directory named build_output."
+   }
+  ],
+  "expect": {
+   "tool": "shell",
+   "args": {
+    "command": {
+     "regex": "mkdir\\s+(-p\\s+)?build_output"
+    }
+   }
+  }
+ },
+ {
+  "id": "shell-05",
+  "category": "shell",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Покажи последние 5 коммитов git."
+   }
+  ],
+  "expect": {
+   "tool": "shell",
+   "args": {
+    "command": {
+     "regex": "git\\s+log.*(-5|-n\\s*5|--max-count=5)"
+    }
+   }
+  }
+ },
+ {
+  "id": "shell-06",
+  "category": "shell",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Собери проект командой npm run build."
+   }
+  ],
+  "expect": {
+   "tool": "shell",
+   "args": {
+    "command": {
+     "regex": "npm\\s+run\\s+build"
+    }
+   }
+  }
+ },
+ {
+  "id": "shell-07",
+  "category": "shell",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Check the node version."
+   }
+  ],
+  "expect": {
+   "tool": "shell",
+   "args": {
+    "command": {
+     "regex": "node\\s+(-v|--version)"
+    }
+   }
+  }
+ },
+ {
+  "id": "shell-08",
+  "category": "shell",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Run the linter."
+   }
+  ],
+  "expect": {
+   "tool": "shell",
+   "args": {
+    "command": {
+     "regex": "lint"
+    }
+   }
+  }
+ },
+ {
+  "id": "shell-09",
+  "category": "shell",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Покажи текущую ветку git."
+   }
+  ],
+  "expect": {
+   "tool": "shell",
+   "args": {
+    "command": {
+     "regex": "git\\s+(branch|rev-parse|status)"
+    }
+   }
+  }
+ },
+ {
+  "id": "shell-10",
+  "category": "shell",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Count the lines in src/main.ts."
+   }
+  ],
+  "expect": {
+   "tool": "shell",
+   "args": {
+    "command": {
+     "regex": "wc\\s+-l.*src/main\\.ts"
+    }
+   }
+  }
+ },
+ {
+  "id": "shell-11",
+  "category": "shell",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Запусти python-скрипт scripts/seed.py."
+   }
+  ],
+  "expect": {
+   "tool": "shell",
+   "args": {
+    "command": {
+     "regex": "python3?\\s+scripts/seed\\.py"
+    }
+   }
+  }
+ },
+ {
+  "id": "shell-12",
+  "category": "shell",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Show the diff of the staged changes."
+   }
+  ],
+  "expect": {
+   "tool": "shell",
+   "args": {
+    "command": {
+     "regex": "git\\s+diff\\s+(--staged|--cached)"
+    }
+   }
+  }
+ },
+ {
+  "id": "write-01",
+  "category": "write",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Create a .gitignore that ignores node_modules and dist."
+   }
+  ],
+  "expect": {
+   "tool": "write_file",
+   "args": {
+    "path": {
+     "eq": ".gitignore"
+    },
+    "content": {
+     "contains": "node_modules"
+    }
+   }
+  }
+ },
+ {
+  "id": "write-02",
+  "category": "write",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Create hello.py that prints hello world."
+   }
+  ],
+  "expect": {
+   "tool": "write_file",
+   "args": {
+    "path": {
+     "eq": "hello.py"
+    },
+    "content": {
+     "contains": "print"
+    }
+   }
+  }
+ },
+ {
+  "id": "write-03",
+  "category": "write",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Create src/utils/sum.ts exporting a function sum(a, b) that adds two numbers."
+   }
+  ],
+  "expect": {
+   "tool": "write_file",
+   "args": {
+    "path": {
+     "eq": "src/utils/sum.ts"
+    },
+    "content": {
+     "contains": "sum"
+    }
+   }
+  }
+ },
+ {
+  "id": "write-04",
+  "category": "write",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Создай README.md с заголовком \"My Project\"."
+   }
+  ],
+  "expect": {
+   "tool": "write_file",
+   "args": {
+    "path": {
+     "eq": "README.md"
+    },
+    "content": {
+     "contains": "My Project"
+    }
+   }
+  }
+ },
+ {
+  "id": "write-05",
+  "category": "write",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Create a Dockerfile based on node:20."
+   }
+  ],
+  "expect": {
+   "tool": "write_file",
+   "args": {
+    "path": {
+     "eq": "Dockerfile"
+    },
+    "content": {
+     "regex": "FROM\\s+node"
+    }
+   }
+  }
+ },
+ {
+  "id": "write-06",
+  "category": "write",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Create config/settings.json with {\"debug\": true}."
+   }
+  ],
+  "expect": {
+   "tool": "write_file",
+   "args": {
+    "path": {
+     "eq": "config/settings.json"
+    },
+    "content": {
+     "contains": "debug"
+    }
+   }
+  }
+ },
+ {
+  "id": "write-07",
+  "category": "write",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Создай скрипт scripts/hello.sh, который выводит hi через echo."
+   }
+  ],
+  "expect": {
+   "tool": "write_file",
+   "args": {
+    "path": {
+     "eq": "scripts/hello.sh"
+    },
+    "content": {
+     "contains": "echo"
+    }
+   }
+  }
+ },
+ {
+  "id": "write-08",
+  "category": "write",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Create index.html with a heading \"Welcome\"."
+   }
+  ],
+  "expect": {
+   "tool": "write_file",
+   "args": {
+    "path": {
+     "eq": "index.html"
+    },
+    "content": {
+     "contains": "Welcome"
+    }
+   }
+  }
+ },
+ {
+  "id": "write-09",
+  "category": "write",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Create tests/sum.test.ts with a test for the sum function."
+   }
+  ],
+  "expect": {
+   "tool": "write_file",
+   "args": {
+    "path": {
+     "eq": "tests/sum.test.ts"
+    },
+    "content": {
+     "contains": "sum"
+    }
+   }
+  }
+ },
+ {
+  "id": "write-10",
+  "category": "write",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Create .env.example containing PORT=3000."
+   }
+  ],
+  "expect": {
+   "tool": "write_file",
+   "args": {
+    "path": {
+     "eq": ".env.example"
+    },
+    "content": {
+     "contains": "PORT=3000"
+    }
+   }
+  }
+ },
+ {
+  "id": "edit-01",
+  "category": "edit",
+  "messages": [
+   {
+    "role": "user",
+    "content": "In src/main.ts, replace `port = 3000` with `port = 8080`."
+   }
+  ],
+  "expect": {
+   "tool": "edit_file",
+   "args": {
+    "path": {
+     "eq": "src/main.ts"
+    },
+    "old_string": {
+     "contains": "port = 3000"
+    },
+    "new_string": {
+     "contains": "port = 8080"
+    }
+   }
+  }
+ },
+ {
+  "id": "edit-02",
+  "category": "edit",
+  "messages": [
+   {
+    "role": "user",
+    "content": "В файле package.json замени `\"version\": \"1.0.0\"` на `\"version\": \"1.1.0\"`."
+   }
+  ],
+  "expect": {
+   "tool": "edit_file",
+   "args": {
+    "path": {
+     "eq": "package.json"
+    },
+    "old_string": {
+     "contains": "\"version\": \"1.0.0\""
+    },
+    "new_string": {
+     "contains": "\"version\": \"1.1.0\""
+    }
+   }
+  }
+ },
+ {
+  "id": "edit-03",
+  "category": "edit",
+  "messages": [
+   {
+    "role": "user",
+    "content": "In README.md, replace `Colour` with `Color`."
+   }
+  ],
+  "expect": {
+   "tool": "edit_file",
+   "args": {
+    "path": {
+     "eq": "README.md"
+    },
+    "old_string": {
+     "contains": "Colour"
+    },
+    "new_string": {
+     "contains": "Color"
+    }
+   }
+  }
+ },
+ {
+  "id": "edit-04",
+  "category": "edit",
+  "messages": [
+   {
+    "role": "user",
+    "content": "В файле src/App.tsx замени `Hello` на `Welcome`."
+   }
+  ],
+  "expect": {
+   "tool": "edit_file",
+   "args": {
+    "path": {
+     "eq": "src/App.tsx"
+    },
+    "old_string": {
+     "contains": "Hello"
+    },
+    "new_string": {
+     "contains": "Welcome"
+    }
+   }
+  }
+ },
+ {
+  "id": "edit-05",
+  "category": "edit",
+  "messages": [
+   {
+    "role": "user",
+    "content": "In config/settings.yaml, replace `debug: false` with `debug: true`."
+   }
+  ],
+  "expect": {
+   "tool": "edit_file",
+   "args": {
+    "path": {
+     "eq": "config/settings.yaml"
+    },
+    "old_string": {
+     "contains": "debug: false"
+    },
+    "new_string": {
+     "contains": "debug: true"
+    }
+   }
+  }
+ },
+ {
+  "id": "edit-06",
+  "category": "edit",
+  "messages": [
+   {
+    "role": "user",
+    "content": "В файле src/server.py замени `timeout=30` на `timeout=60`."
+   }
+  ],
+  "expect": {
+   "tool": "edit_file",
+   "args": {
+    "path": {
+     "eq": "src/server.py"
+    },
+    "old_string": {
+     "contains": "timeout=30"
+    },
+    "new_string": {
+     "contains": "timeout=60"
+    }
+   }
+  }
+ },
+ {
+  "id": "edit-07",
+  "category": "edit",
+  "messages": [
+   {
+    "role": "user",
+    "content": "In Makefile, replace `-O0` with `-O2`."
+   }
+  ],
+  "expect": {
+   "tool": "edit_file",
+   "args": {
+    "path": {
+     "eq": "Makefile"
+    },
+    "old_string": {
+     "contains": "-O0"
+    },
+    "new_string": {
+     "contains": "-O2"
+    }
+   }
+  }
+ },
+ {
+  "id": "edit-08",
+  "category": "edit",
+  "messages": [
+   {
+    "role": "user",
+    "content": "В файле src/utils/date.ts замени `getYear` на `getFullYear`."
+   }
+  ],
+  "expect": {
+   "tool": "edit_file",
+   "args": {
+    "path": {
+     "eq": "src/utils/date.ts"
+    },
+    "old_string": {
+     "contains": "getYear"
+    },
+    "new_string": {
+     "contains": "getFullYear"
+    }
+   }
+  }
+ },
+ {
+  "id": "edit-09",
+  "category": "edit",
+  "messages": [
+   {
+    "role": "user",
+    "content": "In docs/setup.md, replace `v1` with `v2`."
+   }
+  ],
+  "expect": {
+   "tool": "edit_file",
+   "args": {
+    "path": {
+     "eq": "docs/setup.md"
+    },
+    "old_string": {
+     "contains": "v1"
+    },
+    "new_string": {
+     "contains": "v2"
+    }
+   }
+  }
+ },
+ {
+  "id": "edit-10",
+  "category": "edit",
+  "messages": [
+   {
+    "role": "user",
+    "content": "В файле go.mod замени `go 1.21` на `go 1.22`."
+   }
+  ],
+  "expect": {
+   "tool": "edit_file",
+   "args": {
+    "path": {
+     "eq": "go.mod"
+    },
+    "old_string": {
+     "contains": "go 1.21"
+    },
+    "new_string": {
+     "contains": "go 1.22"
+    }
+   }
+  }
+ },
+ {
+  "id": "notool-01",
+  "category": "notool",
+  "messages": [
+   {
+    "role": "user",
+    "content": "What does HTTP status 404 mean?"
+   }
+  ],
+  "expect": {
+   "tool": null
+  }
+ },
+ {
+  "id": "notool-02",
+  "category": "notool",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Что такое замыкание в JavaScript?"
+   }
+  ],
+  "expect": {
+   "tool": null
+  }
+ },
+ {
+  "id": "notool-03",
+  "category": "notool",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Say hello."
+   }
+  ],
+  "expect": {
+   "tool": null
+  }
+ },
+ {
+  "id": "notool-04",
+  "category": "notool",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Thanks, that's all for now."
+   }
+  ],
+  "expect": {
+   "tool": null
+  }
+ },
+ {
+  "id": "notool-05",
+  "category": "notool",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Объясни разницу между let и const."
+   }
+  ],
+  "expect": {
+   "tool": null
+  }
+ },
+ {
+  "id": "notool-06",
+  "category": "notool",
+  "messages": [
+   {
+    "role": "user",
+    "content": "What is the capital of France?"
+   }
+  ],
+  "expect": {
+   "tool": null
+  }
+ },
+ {
+  "id": "step-01",
+  "category": "step",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Find where parseConfig is defined and open that file."
+   },
+   {
+    "role": "assistant",
+    "content": "",
+    "tool_calls": [
+     {
+      "id": "c1",
+      "type": "function",
+      "function": {
+       "name": "grep",
+       "arguments": "{\"pattern\":\"parseConfig\"}"
+      }
+     }
+    ]
+   },
+   {
+    "role": "tool",
+    "tool_call_id": "c1",
+    "content": "src/config/parse.ts:12:export function parseConfig(raw: string) {"
+   }
+  ],
+  "expect": {
+   "tool": "read_file",
+   "args": {
+    "path": {
+     "eq": "src/config/parse.ts"
+    }
+   }
+  }
+ },
+ {
+  "id": "step-02",
+  "category": "step",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Find where formatDate is defined and open that file."
+   },
+   {
+    "role": "assistant",
+    "content": "",
+    "tool_calls": [
+     {
+      "id": "c1",
+      "type": "function",
+      "function": {
+       "name": "grep",
+       "arguments": "{\"pattern\":\"formatDate\"}"
+      }
+     }
+    ]
+   },
+   {
+    "role": "tool",
+    "tool_call_id": "c1",
+    "content": "src/utils/date.ts:5:export function formatDate(d: Date) {"
+   }
+  ],
+  "expect": {
+   "tool": "read_file",
+   "args": {
+    "path": {
+     "eq": "src/utils/date.ts"
+    }
+   }
+  }
+ },
+ {
+  "id": "step-03",
+  "category": "step",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Find where connectDb is defined and open that file."
+   },
+   {
+    "role": "assistant",
+    "content": "",
+    "tool_calls": [
+     {
+      "id": "c1",
+      "type": "function",
+      "function": {
+       "name": "grep",
+       "arguments": "{\"pattern\":\"connectDb\"}"
+      }
+     }
+    ]
+   },
+   {
+    "role": "tool",
+    "tool_call_id": "c1",
+    "content": "src/db/connect.ts:3:export async function connectDb() {"
+   }
+  ],
+  "expect": {
+   "tool": "read_file",
+   "args": {
+    "path": {
+     "eq": "src/db/connect.ts"
+    }
+   }
+  }
+ },
+ {
+  "id": "step-04",
+  "category": "step",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Find where useAuth is defined and open that file."
+   },
+   {
+    "role": "assistant",
+    "content": "",
+    "tool_calls": [
+     {
+      "id": "c1",
+      "type": "function",
+      "function": {
+       "name": "grep",
+       "arguments": "{\"pattern\":\"useAuth\"}"
+      }
+     }
+    ]
+   },
+   {
+    "role": "tool",
+    "tool_call_id": "c1",
+    "content": "src/hooks/useAuth.ts:8:export function useAuth() {"
+   }
+  ],
+  "expect": {
+   "tool": "read_file",
+   "args": {
+    "path": {
+     "eq": "src/hooks/useAuth.ts"
+    }
+   }
+  }
+ },
+ {
+  "id": "step-05",
+  "category": "step",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Run the tests and fix the failure."
+   },
+   {
+    "role": "assistant",
+    "content": "",
+    "tool_calls": [
+     {
+      "id": "c1",
+      "type": "function",
+      "function": {
+       "name": "shell",
+       "arguments": "{\"command\":\"npm test\"}"
+      }
+     }
+    ]
+   },
+   {
+    "role": "tool",
+    "tool_call_id": "c1",
+    "content": "FAIL tests/sum.test.ts\n  expected 3, received 4\n    at src/sum.ts:2"
+   }
+  ],
+  "expect": {
+   "tool": "read_file",
+   "args": {
+    "path": {
+     "regex": "src/sum\\.ts|tests/sum\\.test\\.ts"
+    }
+   }
+  }
+ },
+ {
+  "id": "step-06",
+  "category": "step",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Запусти тесты и разберись, что упало."
+   },
+   {
+    "role": "assistant",
+    "content": "",
+    "tool_calls": [
+     {
+      "id": "c1",
+      "type": "function",
+      "function": {
+       "name": "shell",
+       "arguments": "{\"command\":\"pytest\"}"
+      }
+     }
+    ]
+   },
+   {
+    "role": "tool",
+    "tool_call_id": "c1",
+    "content": "FAILED tests/test_api.py::test_login - AssertionError: 401 != 200"
+   }
+  ],
+  "expect": {
+   "tool": "read_file",
+   "args": {
+    "path": {
+     "regex": "test_api\\.py"
+    }
+   }
+  }
+ },
+ {
+  "id": "step-07",
+  "category": "step",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Look at the docs folder and open the setup guide."
+   },
+   {
+    "role": "assistant",
+    "content": "",
+    "tool_calls": [
+     {
+      "id": "c1",
+      "type": "function",
+      "function": {
+       "name": "list_dir",
+       "arguments": "{\"path\":\"docs\"}"
+      }
+     }
+    ]
+   },
+   {
+    "role": "tool",
+    "tool_call_id": "c1",
+    "content": "intro.md\nsetup.md\nfaq.md"
+   }
+  ],
+  "expect": {
+   "tool": "read_file",
+   "args": {
+    "path": {
+     "regex": "docs/setup\\.md"
+    }
+   }
+  }
+ },
+ {
+  "id": "step-08",
+  "category": "step",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Покажи файлы в src и открой точку входа."
+   },
+   {
+    "role": "assistant",
+    "content": "",
+    "tool_calls": [
+     {
+      "id": "c1",
+      "type": "function",
+      "function": {
+       "name": "list_dir",
+       "arguments": "{\"path\":\"src\"}"
+      }
+     }
+    ]
+   },
+   {
+    "role": "tool",
+    "tool_call_id": "c1",
+    "content": "index.ts\nutils/\ncomponents/"
+   }
+  ],
+  "expect": {
+   "tool": "read_file",
+   "args": {
+    "path": {
+     "regex": "index\\.ts"
+    }
+   }
+  }
+ },
+ {
+  "id": "step-09",
+  "category": "step",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Change the port to 8080 in src/server.ts."
+   },
+   {
+    "role": "assistant",
+    "content": "",
+    "tool_calls": [
+     {
+      "id": "c1",
+      "type": "function",
+      "function": {
+       "name": "read_file",
+       "arguments": "{\"path\":\"src/server.ts\"}"
+      }
+     }
+    ]
+   },
+   {
+    "role": "tool",
+    "tool_call_id": "c1",
+    "content": "import http from 'node:http';\nconst port = 3000;\nhttp.createServer().listen(port);"
+   }
+  ],
+  "expect": {
+   "tool": "edit_file",
+   "args": {
+    "path": {
+     "eq": "src/server.ts"
+    },
+    "old_string": {
+     "contains": "3000"
+    },
+    "new_string": {
+     "contains": "8080"
+    }
+   }
+  }
+ },
+ {
+  "id": "step-10",
+  "category": "step",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Bump the version in package.json to 0.2.0."
+   },
+   {
+    "role": "assistant",
+    "content": "",
+    "tool_calls": [
+     {
+      "id": "c1",
+      "type": "function",
+      "function": {
+       "name": "read_file",
+       "arguments": "{\"path\":\"package.json\"}"
+      }
+     }
+    ]
+   },
+   {
+    "role": "tool",
+    "tool_call_id": "c1",
+    "content": "{ \"name\": \"demo\", \"version\": \"0.1.0\" }"
+   }
+  ],
+  "expect": {
+   "tool": "edit_file",
+   "args": {
+    "path": {
+     "eq": "package.json"
+    },
+    "new_string": {
+     "contains": "0.2.0"
+    }
+   }
+  }
+ },
+ {
+  "id": "step-11",
+  "category": "step",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Исправь опечатку Colour на Color в README.md."
+   },
+   {
+    "role": "assistant",
+    "content": "",
+    "tool_calls": [
+     {
+      "id": "c1",
+      "type": "function",
+      "function": {
+       "name": "read_file",
+       "arguments": "{\"path\":\"README.md\"}"
+      }
+     }
+    ]
+   },
+   {
+    "role": "tool",
+    "tool_call_id": "c1",
+    "content": "# Demo\nColour picker for the web."
+   }
+  ],
+  "expect": {
+   "tool": "edit_file",
+   "args": {
+    "path": {
+     "eq": "README.md"
+    },
+    "old_string": {
+     "contains": "Colour"
+    },
+    "new_string": {
+     "contains": "Color"
+    }
+   }
+  }
+ },
+ {
+  "id": "step-12",
+  "category": "step",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Create hello.py that prints hi and run it."
+   },
+   {
+    "role": "assistant",
+    "content": "",
+    "tool_calls": [
+     {
+      "id": "c1",
+      "type": "function",
+      "function": {
+       "name": "write_file",
+       "arguments": "{\"path\":\"hello.py\",\"content\":\"print('hi')\\n\"}"
+      }
+     }
+    ]
+   },
+   {
+    "role": "tool",
+    "tool_call_id": "c1",
+    "content": "OK: wrote hello.py"
+   }
+  ],
+  "expect": {
+   "tool": "shell",
+   "args": {
+    "command": {
+     "regex": "python3?\\s+hello\\.py"
+    }
+   }
+  }
+ },
+ {
+  "id": "step-13",
+  "category": "step",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Write a test for sum in tests/sum.test.ts and run the tests."
+   },
+   {
+    "role": "assistant",
+    "content": "",
+    "tool_calls": [
+     {
+      "id": "c1",
+      "type": "function",
+      "function": {
+       "name": "write_file",
+       "arguments": "{\"path\":\"tests/sum.test.ts\",\"content\":\"import { sum } from '../src/sum';\\n\"}"
+      }
+     }
+    ]
+   },
+   {
+    "role": "tool",
+    "tool_call_id": "c1",
+    "content": "OK: wrote tests/sum.test.ts"
+   }
+  ],
+  "expect": {
+   "tool": "shell",
+   "args": {
+    "command": {
+     "regex": "test|vitest|jest"
+    }
+   }
+  }
+ },
+ {
+  "id": "step-14",
+  "category": "step",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Install dependencies and start the dev server."
+   },
+   {
+    "role": "assistant",
+    "content": "",
+    "tool_calls": [
+     {
+      "id": "c1",
+      "type": "function",
+      "function": {
+       "name": "shell",
+       "arguments": "{\"command\":\"npm install\"}"
+      }
+     }
+    ]
+   },
+   {
+    "role": "tool",
+    "tool_call_id": "c1",
+    "content": "added 120 packages in 8s"
+   }
+  ],
+  "expect": {
+   "tool": "shell",
+   "args": {
+    "command": {
+     "regex": "npm\\s+(run\\s+)?dev|npm\\s+start"
+    }
+   }
+  }
+ },
+ {
+  "id": "step-15",
+  "category": "step",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Is there a file named config.yaml? If so, show it."
+   },
+   {
+    "role": "assistant",
+    "content": "",
+    "tool_calls": [
+     {
+      "id": "c1",
+      "type": "function",
+      "function": {
+       "name": "glob",
+       "arguments": "{\"pattern\":\"**/config.yaml\"}"
+      }
+     }
+    ]
+   },
+   {
+    "role": "tool",
+    "tool_call_id": "c1",
+    "content": "config/config.yaml"
+   }
+  ],
+  "expect": {
+   "tool": "read_file",
+   "args": {
+    "path": {
+     "regex": "config/config\\.yaml"
+    }
+   }
+  }
+ },
+ {
+  "id": "step-16",
+  "category": "step",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Check whether the build passes and look at the error if not."
+   },
+   {
+    "role": "assistant",
+    "content": "",
+    "tool_calls": [
+     {
+      "id": "c1",
+      "type": "function",
+      "function": {
+       "name": "shell",
+       "arguments": "{\"command\":\"npm run build\"}"
+      }
+     }
+    ]
+   },
+   {
+    "role": "tool",
+    "tool_call_id": "c1",
+    "content": "error TS2304: Cannot find name 'foo'.\n  src/app.ts(10,5)"
+   }
+  ],
+  "expect": {
+   "tool": "read_file",
+   "args": {
+    "path": {
+     "regex": "src/app\\.ts"
+    }
+   }
+  }
+ },
+ {
+  "id": "skill-01",
+  "category": "skill",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Extract the text from report.pdf."
+   }
+  ],
+  "expect": {
+   "tool": "skill",
+   "args": {
+    "name": {
+     "eq": "pdf-extract"
+    }
+   }
+  }
+ },
+ {
+  "id": "skill-02",
+  "category": "skill",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Write a commit message for my staged changes."
+   }
+  ],
+  "expect": {
+   "tool": "skill",
+   "args": {
+    "name": {
+     "eq": "commit-message"
+    }
+   }
+  }
+ },
+ {
+  "id": "skill-03",
+  "category": "skill",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Сделай ревью моих изменений."
+   }
+  ],
+  "expect": {
+   "tool": "skill",
+   "args": {
+    "name": {
+     "eq": "code-review"
+    }
+   }
+  }
+ },
+ {
+  "id": "skill-04",
+  "category": "skill",
+  "messages": [
+   {
+    "role": "user",
+    "content": "Обнови CHANGELOG для релиза 1.2."
+   }
+  ],
+  "expect": {
+   "tool": "skill",
+   "args": {
+    "name": {
+     "eq": "changelog"
+    }
+   }
+  }
+ }
+]

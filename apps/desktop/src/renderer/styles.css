@@ -1,0 +1,13 @@
+:root { color-scheme: light dark; font-family: system-ui, sans-serif; }
+body { margin: 0; }
+.shell { display: grid; grid-template-columns: 220px 1fr 1fr; height: 100vh; }
+.sessions, .panel { padding: 12px; border-inline: 1px solid color-mix(in srgb, currentColor 15%, transparent); }
+.chat { display: flex; flex-direction: column; padding: 12px; }
+.feed { flex: 1; }
+.composer { display: flex; gap: 8px; align-items: center; }
+.composer input { flex: 1; padding: 8px; }
+.panel nav { display: flex; gap: 4px; margin-bottom: 8px; }
+.panel button { padding: 4px 10px; background: none; border: 1px solid transparent; color: inherit; cursor: pointer; }
+.panel button.active { border-color: currentColor; }
+.muted { opacity: 0.6; }
+h2 { font-size: 14px; margin: 0 0 8px; }

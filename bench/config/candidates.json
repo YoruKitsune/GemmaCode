@@ -1,0 +1,11 @@
+{
+  "repos": ["ggml-org/gemma-4-E2B-it-GGUF", "unsloth/gemma-4-E2B-it-GGUF", "bartowski/google_gemma-4-E2B-it-GGUF"],
+  "quants": ["Q3_K_M", "Q4_0", "Q4_K_M", "Q5_K_M", "Q8_0"],
+  "referenceQuant": "Q8_0",
+  "toolSuccessMarginPp": 3,
+  "targetTps": 60,
+  "context": 16384,
+  "kvCache": "q8_0",
+  "scenarios": ["chat", "prefill2k", "prefill8k", "edit"],
+  "specVariants": ["none", "ngram-mod", "ngram-simple", "ngram-map-k"]
+}
