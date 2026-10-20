@@ -31,7 +31,8 @@ export function validateArgs(schema: JsonSchemaObject, raw: string | Record<stri
 
   for (const key of Object.keys(input)) {
     if (!(key in schema.properties)) {
-      if (schema.additionalProperties === false || schema.additionalProperties === undefined) problems.push(`unknown argument "${key}"`);
+      if (schema.additionalProperties !== true) problems.push(`unknown argument "${key}"`);
+      else out[key] = input[key];
     }
   }
   for (const [key, prop] of Object.entries(schema.properties)) {
@@ -88,6 +89,9 @@ function coerce(v: unknown, prop: JsonSchemaProp): Coerced {
     case 'object':
       if (typeof v === 'object' && !Array.isArray(v)) return { ok: true, value: v };
       return { ok: false, error: 'expected an object' };
+    default:
+      // схемы внешних (MCP) инструментов могут быть сложнее: anyOf, вложенные типы. Их проверяет сам сервер.
+      return { ok: true, value: v };
   }
 }
 

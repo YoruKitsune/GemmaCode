@@ -52,7 +52,7 @@ export interface JsonSchemaObject {
 }
 
 export interface JsonSchemaProp {
-  type: 'string' | 'number' | 'integer' | 'boolean' | 'array' | 'object';
+  type: 'string' | 'number' | 'integer' | 'boolean' | 'array' | 'object' | (string & {});
   description?: string;
   enum?: string[];
   items?: { type: string };

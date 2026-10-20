@@ -13,8 +13,11 @@
   },
   "scripts": {
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "test": "npm run test --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present && npm run test:eval",
     "build": "npm run build --workspaces --if-present",
-    "bench": "node bench/bench.mjs"
+    "bench": "node bench/bench.mjs",
+    "test:eval": "node --experimental-strip-types --test --test-concurrency=4 eval/*.test.ts",
+    "eval": "node --experimental-strip-types eval/run.ts",
+    "gemmacode": "node packages/cli/bin/gemmacode.mjs"
   }
 }

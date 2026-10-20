@@ -22,3 +22,5 @@ export * from './agent/runner.ts';
 export * from './agent/review.ts';
 export * from './snapshot/diff.ts';
 export { execCommand } from './tools/shell.ts';
+export * from './mcp/manager.ts';
+export * from './config/load.ts';

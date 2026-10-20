@@ -1,4 +1,4 @@
-import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { ChatMessage } from '../inference/backend.ts';
 
@@ -31,7 +31,12 @@ export class SessionStore {
     appendFileSync(this.file(id), `${JSON.stringify(message)}\n`);
   }
 
-  /** Заменяет историю после сжатия: старый файл остаётся как архив. */
+  /** Переписывает историю целиком (после отката ходов или сжатия). */
+  rewrite(id: string, messages: readonly ChatMessage[]): void {
+    mkdirSync(this.dir, { recursive: true });
+    writeFileSync(this.file(id), messages.map((m) => `${JSON.stringify(m)}\n`).join(''));
+  }
+
   load(id: string): ChatMessage[] {
     if (!existsSync(this.file(id))) return [];
     const out: ChatMessage[] = [];

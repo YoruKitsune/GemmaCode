@@ -54,6 +54,7 @@ export class Agent {
   private readonly strategy: Strategy;
   private system: string;
   private genSpeedSamples: number[] = [];
+  private notices: string[] = [];
   /** Последнее известное число токенов контекста по данным движка. */
   private lastContextTokens = 0;
   private lastContextMessages = 0;
@@ -77,6 +78,23 @@ export class Agent {
       todos: [],
     };
     if (opts.store && opts.sessionId) this.messages.push(...opts.store.load(opts.sessionId));
+  }
+
+  /** Сообщает модели о событии вне диалога (например, пользователь откатил правки): текст присоединится к следующему сообщению. */
+  addNotice(text: string): void {
+    this.notices.push(text);
+  }
+
+  /** Убирает последние `n` ходов пользователя из истории (после отката файлов). */
+  dropLastTurns(n: number): void {
+    for (let k = 0; k < n; k++) {
+      let i = this.messages.length - 1;
+      while (i >= 0 && this.messages[i]!.role !== 'user') i--;
+      if (i < 0) return;
+      this.messages.length = i;
+    }
+    this.lastContextTokens = 0;
+    if (this.o.store && this.o.sessionId) this.o.store.rewrite(this.o.sessionId, this.messages);
   }
 
   get systemPrompt(): string {
@@ -108,6 +126,11 @@ export class Agent {
       const block = `\n\n[Skill "${routed.skill.name}" is loaded. Follow its instructions.]\n${routed.skill.body}`;
       userContent = typeof input === 'string' ? `${routed.text}${block}` : [...input, { type: 'text', text: block }];
       if (routed.skill.scope === 'project') this.o.policy.markTainted();
+    }
+    if (this.notices.length) {
+      const note = `[Note: ${this.notices.join(' ')}]\n\n`;
+      this.notices = [];
+      userContent = typeof userContent === 'string' ? note + userContent : [{ type: 'text', text: note }, ...userContent];
     }
     this.push({ role: 'user', content: userContent });
 
@@ -225,6 +248,7 @@ export class Agent {
     const r = compactHistory(this.messages, Math.floor(this.o.contextSize * 0.5) - systemTokens);
     if (r.stage === 'none') return;
     this.messages.splice(0, this.messages.length, ...r.messages);
+    if (this.o.store && this.o.sessionId) this.o.store.rewrite(this.o.sessionId, this.messages);
     // История сменилась: оценка движка устарела.
     this.lastContextTokens = 0;
     yield { type: 'compaction', stage: r.stage, before: r.before, after: r.after };

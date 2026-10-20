@@ -1,0 +1,19 @@
+{
+  "name": "@gemmacode/cli",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "bin": { "gemmacode": "bin/gemmacode.mjs" },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node --experimental-strip-types --test test/*.test.ts",
+    "start": "node bin/gemmacode.mjs"
+  },
+  "dependencies": {
+    "@gemmacode/core": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0"
+  }
+}
