@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { join } from 'node:path';
+import { mkdtempSync, realpathSync, rmSync, symlinkSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { PermissionPolicy, type PermissionMode } from '../src/permissions/policy.ts';
 import { isSafeCommand, mentionsSecret } from '../src/permissions/safe-commands.ts';
 import { BubblewrapSandbox, detectSandbox, seatbeltProfile, SeatbeltSandbox } from '../src/sandbox/index.ts';
@@ -98,6 +100,19 @@ test('Seatbelt: профиль ограничивает запись, сеть �
   const spec = new SeatbeltSandbox().wrap('echo hi', { cwd: '/work/proj', network: false });
   assert.equal(spec.file, '/usr/bin/sandbox-exec');
   assert.deepEqual(spec.args.slice(-3), ['/bin/sh', '-c', 'echo hi']);
+});
+
+test('Seatbelt: секреты закрыты и по реальному пути, если home лежит за симлинком', () => {
+  const real = mkdtempSync(join(tmpdir(), 'gc-real-'));
+  const link = join(tmpdir(), `gc-link-${process.pid}`);
+  symlinkSync(real, link);
+  try {
+    const prof = seatbeltProfile({ cwd: '/work/proj', network: false }, link);
+    assert.ok(prof.includes(`(subpath "${join(link, '.ssh')}")`));
+    assert.ok(prof.includes(`(subpath "${join(realpathSync(real), '.ssh')}")`));
+  } finally {
+    rmSync(link, { force: true });
+  }
 });
 
 test('bubblewrap и выбор песочницы по платформе', () => {

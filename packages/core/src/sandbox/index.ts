@@ -1,7 +1,7 @@
 import { realpathSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { SECRET_HOME_PATHS } from '../tools/paths.ts';
+import { SECRET_HOME_PATHS, realish } from '../tools/paths.ts';
 
 export type SandboxKind = 'seatbelt' | 'bubblewrap' | 'none';
 
@@ -44,7 +44,9 @@ export function seatbeltProfile(policy: SandboxPolicy, home = homedir()): string
   lines.push('(deny file-write*)');
   lines.push(`(allow file-write* ${writable.map((p) => `(subpath ${sbString(p)})`).join(' ')})`);
   lines.push('(allow file-write* (literal "/dev/null") (literal "/dev/tty") (literal "/dev/dtracehelper") (regex #"^/dev/fd/"))');
-  const secrets = SECRET_HOME_PATHS.map((p) => `(subpath ${sbString(join(home, p))})`);
+  // Seatbelt сравнивает реальные пути, поэтому добавляем и путь без симлинков (например, /var -> /private/var).
+  const secretPaths = [...new Set(SECRET_HOME_PATHS.flatMap((p) => [join(home, p), realish(join(home, p))]))];
+  const secrets = secretPaths.map((p) => `(subpath ${sbString(p)})`);
   lines.push(`(deny file-read* ${secrets.join(' ')})`);
   // Внутри проекта защищённые файлы остаются читаемыми через инструменты агента, но не через shell.
   lines.push(`(deny file-read* (regex #"/\\.env($|\\.[^/]*$)") (regex #"/id_(rsa|dsa|ecdsa|ed25519)$"))`);
