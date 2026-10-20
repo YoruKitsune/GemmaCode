@@ -3,6 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "description": "Локальный кроссплатформенный ИИ-агент на Gemma 4",
+  "type": "module",
   "workspaces": [
     "packages/*",
     "apps/*"

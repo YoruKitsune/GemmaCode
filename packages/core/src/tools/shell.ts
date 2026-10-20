@@ -14,7 +14,7 @@ const SECRET_ENV = /(token|secret|password|passwd|api[_-]?key|private[_-]?key|cr
 /** Окружение для команд: без токенов и ключей, чтобы они не утекали в вывод и скрипты. */
 export function cleanEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   const out: NodeJS.ProcessEnv = {};
-  for (const [k, v] of Object.entries(env)) if (!SECRET_ENV.test(k)) out[k] = v;
+  for (const [k, v] of Object.entries(env)) if (!SECRET_ENV.test(k) && k !== 'NODE_TEST_CONTEXT') out[k] = v;
   return out;
 }
 
