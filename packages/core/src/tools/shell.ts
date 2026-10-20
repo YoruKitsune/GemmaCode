@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import { truncateMiddle } from '../context/truncate.ts';
 import { detectSandbox } from '../sandbox/index.ts';
+import type { SandboxRunner } from '../sandbox/index.ts';
 import type { Tool, ToolContext, ToolResult } from './types.ts';
 
 const MAX_OUTPUT_CHARS = 8000;
@@ -23,6 +24,73 @@ export interface ShellArgs {
   network?: boolean;
 }
 
+export interface ExecOptions {
+  cwd: string;
+  sandbox?: SandboxRunner;
+  timeoutS?: number;
+  network?: boolean;
+  signal?: AbortSignal;
+  maxOutputChars?: number;
+}
+
+export interface ExecOutcome {
+  output: string;
+  exitCode: number | null;
+  timedOut: boolean;
+  aborted: boolean;
+  signal: string | null;
+  spawnError?: string;
+}
+
+/** Запуск команды под песочницей с таймаутом и сбором вывода. Используется инструментом shell и проверками режима loop. */
+export function execCommand(command: string, o: ExecOptions): Promise<ExecOutcome> {
+  const sandbox = o.sandbox ?? detectSandbox();
+  const spec = sandbox.wrap(command, { cwd: o.cwd, network: o.network === true });
+  const timeoutMs = Math.min(Math.max(o.timeoutS ?? DEFAULT_TIMEOUT_S, 1), MAX_TIMEOUT_S) * 1000;
+  return new Promise<ExecOutcome>((resolve) => {
+    let out = '';
+    let timedOut = false;
+    let aborted = false;
+    const child = spawn(spec.file, spec.args, {
+      cwd: o.cwd,
+      env: cleanEnv(process.env),
+      stdio: ['ignore', 'pipe', 'pipe'],
+      detached: process.platform !== 'win32',
+    });
+    const killTree = (): void => {
+      try {
+        if (process.platform === 'win32') child.kill();
+        else process.kill(-child.pid!, 'SIGKILL');
+      } catch {
+        // процесс уже завершился
+      }
+    };
+    const timer = setTimeout(() => {
+      timedOut = true;
+      killTree();
+    }, timeoutMs);
+    const onAbort = (): void => {
+      aborted = true;
+      killTree();
+    };
+    o.signal?.addEventListener('abort', onAbort, { once: true });
+    const collect = (d: Buffer): void => {
+      if (out.length < MAX_CAPTURE) out += d.toString('utf8');
+    };
+    child.stdout.on('data', collect);
+    child.stderr.on('data', collect);
+    child.on('error', (e) => {
+      clearTimeout(timer);
+      resolve({ output: '', exitCode: null, timedOut: false, aborted: false, signal: null, spawnError: e.message });
+    });
+    child.on('close', (code, signal) => {
+      clearTimeout(timer);
+      o.signal?.removeEventListener('abort', onAbort);
+      resolve({ output: truncateMiddle(out.trimEnd(), o.maxOutputChars ?? MAX_OUTPUT_CHARS), exitCode: code, timedOut, aborted, signal });
+    });
+  });
+}
+
 export const shell: Tool<ShellArgs> = {
   name: 'shell',
   description: 'Run a shell command in the project root (build, tests, git, scripts). Returns output and exit code. Network is off unless network is true.',
@@ -39,59 +107,22 @@ export const shell: Tool<ShellArgs> = {
   risk: 'exec',
   inspect: (a) => ({ summary: `$ ${a.command}`, command: a.command }),
   async run(a, ctx): Promise<ToolResult> {
-    const sandbox = ctx.sandbox ?? detectSandbox();
-    const spec = sandbox.wrap(a.command, { cwd: ctx.cwd, network: a.network === true });
-    const timeoutMs = Math.min(Math.max(a.timeout_s ?? DEFAULT_TIMEOUT_S, 1), MAX_TIMEOUT_S) * 1000;
-    return await new Promise<ToolResult>((resolve) => {
-      let out = '';
-      let timedOut = false;
-      let aborted = false;
-      const child = spawn(spec.file, spec.args, {
-        cwd: ctx.cwd,
-        env: cleanEnv(process.env),
-        stdio: ['ignore', 'pipe', 'pipe'],
-        detached: process.platform !== 'win32',
-      });
-      const killTree = (): void => {
-        try {
-          if (process.platform === 'win32') child.kill();
-          else process.kill(-child.pid!, 'SIGKILL');
-        } catch {
-          // процесс уже завершился
-        }
-      };
-      const timer = setTimeout(() => {
-        timedOut = true;
-        killTree();
-      }, timeoutMs);
-      const onAbort = (): void => {
-        aborted = true;
-        killTree();
-      };
-      ctx.signal?.addEventListener('abort', onAbort, { once: true });
-      const collect = (d: Buffer): void => {
-        if (out.length < MAX_CAPTURE) out += d.toString('utf8');
-      };
-      child.stdout.on('data', collect);
-      child.stderr.on('data', collect);
-      child.on('error', (e) => {
-        clearTimeout(timer);
-        resolve({ content: `Failed to start the command: ${e.message}`, isError: true });
-      });
-      child.on('close', (code, signal) => {
-        clearTimeout(timer);
-        ctx.signal?.removeEventListener('abort', onAbort);
-        const body = truncateMiddle(out.trimEnd(), MAX_OUTPUT_CHARS);
-        const status = timedOut
-          ? `[timed out after ${timeoutMs / 1000}s]`
-          : aborted
-            ? '[interrupted]'
-            : signal
-              ? `[killed by ${signal}]`
-              : `[exit code ${code}]`;
-        resolve({ content: body ? `${body}\n${status}` : status, isError: timedOut || aborted || code !== 0 });
-      });
+    const r = await execCommand(a.command, {
+      cwd: ctx.cwd,
+      ...(ctx.sandbox ? { sandbox: ctx.sandbox } : {}),
+      ...(a.timeout_s !== undefined ? { timeoutS: a.timeout_s } : {}),
+      ...(a.network !== undefined ? { network: a.network } : {}),
+      ...(ctx.signal ? { signal: ctx.signal } : {}),
     });
+    if (r.spawnError) return { content: `Failed to start the command: ${r.spawnError}`, isError: true };
+    const status = r.timedOut
+      ? `[timed out after ${Math.min(Math.max(a.timeout_s ?? DEFAULT_TIMEOUT_S, 1), MAX_TIMEOUT_S)}s]`
+      : r.aborted
+        ? '[interrupted]'
+        : r.signal
+          ? `[killed by ${r.signal}]`
+          : `[exit code ${r.exitCode}]`;
+    return { content: r.output ? `${r.output}\n${status}` : status, isError: r.timedOut || r.aborted || r.exitCode !== 0 };
   },
 };
 

@@ -1,5 +1,6 @@
 import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
+import { unifiedDiff } from './diff.ts';
 
 interface Entry {
   /** Файл существовал до правки; если да, оригинал лежит в `blob`. */
@@ -79,6 +80,31 @@ export class SnapshotStore {
     const set = new Set<string>();
     for (const cp of this.checkpoints) if (cp.id >= id) for (const f of Object.keys(cp.files)) set.add(f);
     return [...set].sort();
+  }
+
+  /** Содержимое файла до контрольной точки `id`: null, если файла тогда не было. */
+  originalText(rel: string, id: number): string | null {
+    for (const cp of this.checkpoints) {
+      if (cp.id < id) continue;
+      const e = cp.files[rel];
+      if (!e) continue;
+      return e.existed && e.blob ? readFileSync(join(this.dir, e.blob), 'utf8') : null;
+    }
+    return existsSync(join(this.root, rel)) ? readFileSync(join(this.root, rel), 'utf8') : null;
+  }
+
+  /** Unified diff всех изменений с контрольной точки `id` до текущего состояния. */
+  diffSince(id: number): string {
+    const parts: string[] = [];
+    for (const rel of this.changedSince(id)) {
+      const before = this.originalText(rel, id);
+      const abs = join(this.root, rel);
+      const after = existsSync(abs) ? readFileSync(abs, 'utf8') : null;
+      if (before === after) continue;
+      const d = unifiedDiff(rel, before, after);
+      if (d) parts.push(d);
+    }
+    return parts.join('\n');
   }
 
   /** Возвращает файлы к состоянию до контрольной точки `id` и забывает её и все более поздние. */

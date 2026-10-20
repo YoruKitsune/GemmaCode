@@ -18,3 +18,7 @@ export * from './snapshot/store.ts';
 export * from './session/store.ts';
 export * from './context/compact.ts';
 export * from './context/truncate.ts';
+export * from './agent/runner.ts';
+export * from './agent/review.ts';
+export * from './snapshot/diff.ts';
+export { execCommand } from './tools/shell.ts';

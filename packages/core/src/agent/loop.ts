@@ -49,6 +49,7 @@ export class Agent {
   readonly messages: ChatMessage[] = [];
   readonly stats: SessionStats = { steps: 0, toolCalls: 0, invalidCalls: 0, promptTokens: 0, generatedTokens: 0, genTokensPerSecond: 0 };
   readonly ctx: ToolContext;
+  readonly backend: InferenceBackend;
   private readonly o: Required<Pick<AgentOptions, 'contextSize' | 'maxSteps' | 'maxInvalidCalls' | 'maxTokens' | 'temperature' | 'toolOutputChars'>> & AgentOptions;
   private readonly strategy: Strategy;
   private system: string;
@@ -60,6 +61,7 @@ export class Agent {
   constructor(opts: AgentOptions) {
     this.o = { contextSize: 16384, maxSteps: 25, maxInvalidCalls: 3, maxTokens: 1536, temperature: 0, toolOutputChars: 8000, ...opts };
     this.sessionId = opts.sessionId ?? 'session';
+    this.backend = opts.backend;
     this.strategy = (opts.toolCallMode ?? 'native') === 'schema' ? new SchemaStrategy() : new NativeStrategy();
     const routed = (opts.skillRouting ?? 'auto') !== 'model';
     this.system = buildSystemPrompt({ cwd: opts.cwd, ...(opts.skills ? { skills: opts.skills } : {}), listSkills: !routed || undefined, ...(opts.systemExtra ? { extra: opts.systemExtra } : {}) });
