@@ -64,9 +64,15 @@ export interface EvalSummary {
   avgTokensPerSecond: number;
 }
 
-/** Проверка, которую пользователь мог бы задать сам, не зная скрытых тестов: видимые тесты либо проверка синтаксиса. */
+/**
+ * Проверка, которую пользователь мог бы задать сам, не зная скрытых тестов: видимые тесты либо проверка синтаксиса.
+ * `node --check a b` проверяет только первый файл, поэтому файлы проверяются по одному, а первая ошибка даёт код 1.
+ */
+export const SYNTAX_CHECK =
+  "find . -name '*.js' -not -path './node_modules/*' -not -path './test/*' -not -path './.gemmacode/*' | while read -r f; do node --check \"$f\" || exit 1; done";
+
 export function loopVerifyFor(task: EvalTask): string {
-  return task.showTests ? (task.verify ?? 'node --test') : "find . -name '*.js' -not -path './node_modules/*' -not -path './test/*' -exec node --check {} +";
+  return task.showTests ? (task.verify ?? 'node --test') : SYNTAX_CHECK;
 }
 
 export async function runEval(o: EvalOptions): Promise<{ results: TaskResult[]; summary: EvalSummary }> {
