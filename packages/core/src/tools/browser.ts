@@ -47,7 +47,8 @@ const DESCRIPTION =
   'Control the built-in web browser. open: go to url (a web address, localhost:3000, or a project file like index.html). ' +
   'snapshot: read the page as text; interactive elements are numbered [n]. click: click element ref=n. ' +
   'type: put text into element ref=n (submit=true presses Enter). press: send a key such as Enter, Tab, Escape. scroll: direction down or up. ' +
-  'console: JavaScript errors and failed requests since the last check. screenshot: see the page as an image. wait: wait for text or seconds. back, reload.';
+  'console: JavaScript errors and failed requests since the last check. screenshot: see the page as an image. wait: wait for text or seconds. back, reload. ' +
+  'The snapshot is the rendered page, not its source: to fix a project file, read it with read_file, copy old_string exactly, then reload.';
 
 export const browserTool: Tool<BrowserArgs> = {
   name: 'browser',

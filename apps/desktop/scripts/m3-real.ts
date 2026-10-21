@@ -49,6 +49,7 @@ interface Scenario {
   passed: (dir: string, tools: string[]) => string | null;
 }
 
+const only = (arg('only') ?? 'ABC').toUpperCase();
 const scenarios: Scenario[] = [
   {
     name: 'A. «Исправь sum» (точная фраза из M2)',
@@ -79,7 +80,7 @@ const scenarios: Scenario[] = [
 const rows: string[] = [];
 const detail: unknown[] = [];
 const speed: { tps: number; ttft: number; rss: number | null; tools: number; errs: number }[] = [];
-for (const sc of scenarios) {
+for (const sc of scenarios.filter((x) => only.includes(x.name[0]!))) {
   let ok = 0;
   for (let i = 1; i <= runs; i++) {
     const dir = mkdtempSync(join(tmpdir(), 'gc-m3-proj-'));
@@ -109,7 +110,14 @@ for (const sc of scenarios) {
     const st = (await host.call('stats.get', {})).agent;
     const last = st.recent.at(-1);
     if (last) speed.push({ tps: last.genTps, ttft: last.ttftMs, rss: st.modelRssMB, tools: st.toolCalls, errs: st.toolErrors });
-    const fail = timedOut ? 'таймаут 240 с' : sc.passed(dir, tools);
+    const ev = (t: string) => events.filter((e) => e.name === 'turn.event' && e.data.event.type === t).map((e) => e.data.event);
+    const done = ev('done').map((d: any) => `${d.reason}${d.message ? ': ' + d.message : ''}`).join('; ');
+    const backend = events.filter((e) => e.name === 'backend.status').map((e) => `${e.data.status}${e.data.message ? ' ' + e.data.message : ''}`).join(' | ');
+    const text = ev('text').map((e: any) => e.delta).join('').slice(0, 300);
+    console.log(`     done=${done || '-'}; backend=${backend || '-'}; text=${JSON.stringify(text)}`);
+    for (const r of ev('tool_result') as any[]) console.log(`     ${r.name}${r.isError ? '!' : ''}: ${String(r.content).slice(0, 160)}`);
+    for (const t of ['invalid_call', 'fallback']) for (const x of ev(t) as any[]) console.log(`     ${t}: ${JSON.stringify(x).slice(0, 700)}`);
+        const fail = timedOut ? 'таймаут 240 с' : sc.passed(dir, tools);
     if (!fail) ok++;
     const secs = ((Date.now() - t0) / 1000).toFixed(0);
     const line = `${i}: ${fail ? '✗ ' + fail : '✓'}; ${secs} с; инструменты: ${tools.join(' → ') || 'нет'}; nudge ${nudges}, ошибок инструментов ${errors}, подтверждений ${approvals}`;

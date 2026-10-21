@@ -362,3 +362,25 @@ test('браузер: разовое «Разрешить» запоминает
   assert.equal(asked.length, 1);
   assert.equal(opened.length, 2);
 });
+
+test('edit_file без path после read_file: подставляется прочитанный файл, без read_file остаётся ошибкой', async () => {
+  const dir = tempProject({ 'site/a.html': '<h1>wolrd</h1>\n' });
+  const { agent } = mkAgent(dir, [
+    { calls: [{ name: 'read_file', args: { path: 'site/a.html' } }] },
+    { calls: [{ name: 'edit_file', args: { old_string: 'wolrd', new_string: 'world' } }] },
+    { text: 'Готово' },
+  ]);
+  const ev = await run(agent, 'поправь опечатку');
+  assert.equal(readFileSync(join(dir, 'site/a.html'), 'utf8'), '<h1>world</h1>\n');
+  assert.equal(done(ev).reason, 'completed');
+  assert.equal(ev.filter((e) => e.type === 'invalid_call').length, 0);
+
+  const { agent: agent2 } = mkAgent(dir, [
+    { calls: [{ name: 'edit_file', args: { old_string: 'world', new_string: 'x' } }] },
+    { calls: [{ name: 'edit_file', args: { old_string: 'world', new_string: 'x' } }] },
+    { calls: [{ name: 'edit_file', args: { old_string: 'world', new_string: 'x' } }] },
+  ]);
+  const ev2 = await run(agent2, 'поправь');
+  assert.equal(done(ev2).reason, 'invalid_tool_calls');
+  assert.equal(readFileSync(join(dir, 'site/a.html'), 'utf8'), '<h1>world</h1>\n');
+});

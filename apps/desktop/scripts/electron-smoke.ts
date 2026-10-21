@@ -1,9 +1,10 @@
 // Проверка настоящего приложения: Electron запускается, главный процесс поднимает utility-процесс с сервисом агента,
 // окно (file://) общается с ним по IPC. Движок подменён поддельным OpenAI-сервером.
-// Запуск: ELECTRON_BIN=/путь/к/electron node --experimental-strip-types scripts/electron-smoke.ts (на Linux под xvfb-run).
+// Запуск (бинарник Electron находится сам, при нужде ELECTRON_BIN=/путь/к/electron): node --experimental-strip-types scripts/electron-smoke.ts (на Linux под xvfb-run).
 import { execFileSync, spawn } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { createRequire } from 'node:module';
 import { createServer } from 'node:http';
 import { join, resolve } from 'node:path';
 import { chromium } from 'playwright-core';
@@ -12,7 +13,14 @@ import { startFakeServer } from '../../../packages/core/test/fixtures/fake-opena
 const root = resolve(import.meta.dirname, '..');
 const out = process.env.E2E_OUT ?? join(root, 'e2e-out');
 mkdirSync(out, { recursive: true });
-const bin = process.env.ELECTRON_BIN ?? (existsSync(join(root, 'node_modules/.bin/electron')) ? join(root, 'node_modules/.bin/electron') : '');
+// пакет electron при require отдаёт путь к бинарнику (на Mac внутри Electron.app), где бы npm его ни разместил
+const bin = process.env.ELECTRON_BIN ?? ((): string => {
+  try {
+    return createRequire(import.meta.url)('electron') as string;
+  } catch {
+    return existsSync(join(root, 'node_modules/.bin/electron')) ? join(root, 'node_modules/.bin/electron') : '';
+  }
+})();
 if (!bin) throw new Error('Укажите ELECTRON_BIN');
 
 const home = mkdtempSync(join(tmpdir(), 'gc-smoke-home-'));

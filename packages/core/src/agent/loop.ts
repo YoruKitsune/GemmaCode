@@ -179,6 +179,7 @@ export class Agent {
     let sameCount = 0;
     let nudged = false;
     let anyCall = false;
+    this.lastReadPath = undefined;
 
     for (let step = 1; step <= this.o.maxSteps; step++) {
       if (signal?.aborted) {
@@ -281,6 +282,20 @@ export class Agent {
     yield { type: 'done', reason: 'max_steps', steps: this.o.maxSteps };
   }
 
+  /** edit_file без path сразу после read_file: подставляем прочитанный файл (если old_string там не найдётся, инструмент честно ответит ошибкой). */
+  private withReadPath(call: ToolCall): string {
+    if (call.name !== 'edit_file' || !this.lastReadPath) return call.arguments;
+    try {
+      const a = JSON.parse(call.arguments || '{}');
+      if (a && typeof a === 'object' && !Array.isArray(a) && (a.path === undefined || a.path === '') && typeof a.old_string === 'string') {
+        return JSON.stringify({ ...a, path: this.lastReadPath });
+      }
+    } catch {
+      /* битый JSON разберёт validateArgs */
+    }
+    return call.arguments;
+  }
+
   private routeSkill(text: string): { skill: import('../skills/catalog.ts').Skill; via: 'command' | 'match'; text: string } | undefined {
     const mode = this.o.skillRouting ?? 'auto';
     const cat = this.o.skills;
@@ -321,6 +336,9 @@ export class Agent {
   }
 
   /** Валидация, права, выполнение одного вызова. Возвращает 'invalid' для ошибок формата вызова. */
+  /** Файл, который модель прочитала в этом ходе: E2B иногда зовёт edit_file без path сразу после read_file. */
+  private lastReadPath: string | undefined;
+
   private async *runCall(call: ToolCall, repeated: boolean, signal?: AbortSignal): AsyncGenerator<AgentEvent, 'ok' | 'invalid'> {
     const tool = this.o.registry.get(call.name);
     this.stats.toolCalls++;
@@ -331,7 +349,7 @@ export class Agent {
       yield { type: 'invalid_call', name: call.name, error, attempt: this.stats.invalidCalls };
       return 'invalid';
     }
-    const v = validateArgs(tool.parameters, call.arguments, tool.name);
+    const v = validateArgs(tool.parameters, this.withReadPath(call), tool.name);
     if (!v.ok) {
       this.stats.invalidCalls++;
       this.push({ role: 'tool', toolCallId: call.id, content: v.error });
@@ -383,6 +401,7 @@ export class Agent {
     }
     const outside = (intent.paths ?? []).some((p) => !isInside(this.ctx.cwd, p));
     if (result.untrusted || (tool.risk === 'read' && outside) || tool.risk === 'external') this.o.policy.markTainted();
+    if (call.name === 'read_file' && !result.isError && typeof v.args.path === 'string') this.lastReadPath = v.args.path;
     const content = truncateMiddle(result.content, this.o.toolOutputChars);
     this.push({ role: 'tool', toolCallId: call.id, content });
     if (result.images?.length) {
