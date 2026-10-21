@@ -16,9 +16,9 @@
     "test:smoke": "node --experimental-strip-types scripts/electron-smoke.ts",
     "fetch:llama": "node scripts/fetch-llama.mjs",
     "dist:dir": "npm run build && npm run fetch:llama && electron-builder --dir",
-    "dist:mac": "npm run build && npm run fetch:llama -- --platform darwin --arch arm64 && electron-builder --mac --arm64",
-    "dist:linux": "npm run build && npm run fetch:llama -- --platform linux --arch x64 && electron-builder --linux --x64",
-    "dist:win": "npm run build && npm run fetch:llama -- --platform win32 --arch x64 && electron-builder --win --x64"
+    "dist:mac": "npm run build && npm run fetch:llama -- --platform darwin --arch arm64 && electron-builder --mac --arm64 --publish never",
+    "dist:linux": "npm run build && npm run fetch:llama -- --platform linux --arch x64 && electron-builder --linux --x64 --publish never",
+    "dist:win": "npm run build && npm run fetch:llama -- --platform win32 --arch x64 && electron-builder --win --x64 --publish never"
   },
   "dependencies": {
     "@lydell/node-pty": "^1.1.0"
