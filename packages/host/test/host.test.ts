@@ -452,6 +452,49 @@ test('статистика: ход агента попадает в базу, с
   await host.shutdown();
 });
 
+test('статистика: кэш префикса и токены черновика суммируются по шагам хода и считаются долями', async () => {
+  const dir = tempProject({ 'a.js': 'one\n' });
+  const { host, events } = setup([
+    { calls: [{ name: 'read_file', args: { path: 'a.js' } }], timings: { promptTokens: 1800, cachedTokens: 0, predictedTokens: 30, draftTokens: 10, draftAccepted: 4 } },
+    { text: 'Готово', timings: { promptTokens: 50, cachedTokens: 1830, predictedTokens: 20, draftTokens: 30, draftAccepted: 24 } },
+  ]);
+  await host.call('project.open', { path: dir });
+  const s = await host.call('session.create', {});
+  await host.call('chat.send', { sessionId: s.id, text: 'что в a.js', attachments: [] });
+  await until(turnDone(events));
+  const a = (await host.call('stats.get', {})).agent;
+  assert.equal(a.promptTokens, 1850);
+  assert.equal(a.cachedTokens, 1830);
+  assert.equal(Math.round(a.cacheHitRate * 1000), Math.round((1830 / 3680) * 1000));
+  assert.equal(a.draftTokens, 40);
+  assert.equal(a.draftAccepted, 28);
+  assert.equal(a.acceptRate, 0.7);
+  assert.equal(a.speculative, 'ngram-simple');
+  assert.equal(a.recent[0]!.cachedTokens, 1830);
+  const csv = await host.call('stats.export', { format: 'csv' });
+  assert.match(csv.text.split('\n')[0]!, /cached_tokens,generated_tokens,draft_tokens,draft_accepted/);
+  await host.shutdown();
+});
+
+test('статистика: база M3 без новых столбцов дополняется при открытии', async () => {
+  const dir = tempProject({ 'a.js': 'one\n' });
+  mkdirSync(join(dir, '.gemmacode'), { recursive: true });
+  const { DatabaseSync } = await import('node:sqlite');
+  const db = new DatabaseSync(join(dir, '.gemmacode', 'stats.db'));
+  db.exec(`CREATE TABLE turns (id INTEGER PRIMARY KEY AUTOINCREMENT, ts INTEGER NOT NULL, session TEXT, model TEXT, steps INTEGER, tool_calls INTEGER, tool_errors INTEGER, invalid_calls INTEGER, prompt_tokens INTEGER, generated_tokens INTEGER, gen_tps REAL, ttft_ms INTEGER, duration_ms INTEGER, added INTEGER, removed INTEGER, outcome TEXT, rss_mb INTEGER);
+    CREATE TABLE tool_stats (turn_id INTEGER NOT NULL, name TEXT NOT NULL, calls INTEGER NOT NULL, errors INTEGER NOT NULL);
+    INSERT INTO turns (ts, steps, tool_calls, tool_errors, invalid_calls, prompt_tokens, generated_tokens, gen_tps, ttft_ms, duration_ms, added, removed, outcome) VALUES (1, 2, 1, 0, 0, 500, 40, 20, 900, 5000, 1, 0, 'completed');`);
+  db.close();
+  const { host } = setup([]);
+  await host.call('project.open', { path: dir });
+  const a = (await host.call('stats.get', {})).agent;
+  assert.equal(a.turns, 1);
+  assert.equal(a.promptTokens, 500);
+  assert.equal(a.cachedTokens, 0);
+  assert.equal(a.cacheHitRate, 0);
+  await host.shutdown();
+});
+
 test('предпросмотр: HTML подтягивает локальные стили и скрипты, PDF читается как dataUrl', async () => {
   const dir = tempProject({
     'site/index.html': '<link rel="stylesheet" href="style.css"><script src="app.js"></script><img src="logo.svg"><img src="missing.png"><h1>Hi</h1>',

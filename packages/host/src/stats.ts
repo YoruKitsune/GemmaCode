@@ -90,7 +90,12 @@ export interface TurnRecord {
   toolErrors: number;
   invalidCalls: number;
   promptTokens: number;
+  /** Токены промпта из кэша префикса (сумма cache_n по шагам хода). */
+  cachedTokens: number;
   generatedTokens: number;
+  /** Спекулятивный декодинг: токены черновика и принятые (суммы draft_n и draft_n_accepted). */
+  draftTokens: number;
+  draftAccepted: number;
   genTps: number;
   ttftMs: number;
   durationMs: number;
@@ -146,6 +151,9 @@ export class StatsStore {
         CREATE TABLE IF NOT EXISTS tool_stats (turn_id INTEGER NOT NULL, name TEXT NOT NULL, calls INTEGER NOT NULL, errors INTEGER NOT NULL);
         CREATE INDEX IF NOT EXISTS turns_ts ON turns (ts);
       `);
+      // базы M3 без этих столбцов дополняем; старые строки получают 0
+      const have = new Set((db.prepare('PRAGMA table_info(turns)').all() as unknown as { name: string }[]).map((c) => c.name));
+      for (const col of ['cached_tokens', 'draft_tokens', 'draft_accepted']) if (!have.has(col)) db.exec(`ALTER TABLE turns ADD COLUMN ${col} INTEGER NOT NULL DEFAULT 0`);
       this.db = db;
     } catch (e) {
       this.error = (e as Error).message;
@@ -159,10 +167,10 @@ export class StatsStore {
     try {
       const res = db
         .prepare(
-          `INSERT INTO turns (ts, session, model, steps, tool_calls, tool_errors, invalid_calls, prompt_tokens, generated_tokens, gen_tps, ttft_ms, duration_ms, added, removed, outcome, rss_mb)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO turns (ts, session, model, steps, tool_calls, tool_errors, invalid_calls, prompt_tokens, cached_tokens, generated_tokens, draft_tokens, draft_accepted, gen_tps, ttft_ms, duration_ms, added, removed, outcome, rss_mb)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
-        .run(r.ts, r.session, r.model, r.steps, r.toolCalls, r.toolErrors, r.invalidCalls, r.promptTokens, r.generatedTokens, r.genTps, r.ttftMs, r.durationMs, r.added, r.removed, r.outcome, r.rssMB);
+        .run(r.ts, r.session, r.model, r.steps, r.toolCalls, r.toolErrors, r.invalidCalls, r.promptTokens, r.cachedTokens, r.generatedTokens, r.draftTokens, r.draftAccepted, r.genTps, r.ttftMs, r.durationMs, r.added, r.removed, r.outcome, r.rssMB);
       const ins = db.prepare('INSERT INTO tool_stats (turn_id, name, calls, errors) VALUES (?, ?, ?, ?)');
       for (const [name, v] of Object.entries(r.tools)) ins.run(Number(res.lastInsertRowid), name, v.calls, v.errors);
     } catch (e) {
@@ -170,15 +178,15 @@ export class StatsStore {
     }
   }
 
-  agentStats(): { stats: ProjectStats['agent']; dbError?: string } {
+  agentStats(speculative = 'none'): { stats: ProjectStats['agent']; dbError?: string } {
     const empty: ProjectStats['agent'] = {
-      turns: 0, promptTokens: 0, generatedTokens: 0, avgGenTps: 0, avgTtftMs: 0, toolCalls: 0, toolErrors: 0, invalidCalls: 0, toolSuccess: 1,
+      turns: 0, promptTokens: 0, generatedTokens: 0, avgGenTps: 0, avgTtftMs: 0, cachedTokens: 0, cacheHitRate: 0, draftTokens: 0, draftAccepted: 0, acceptRate: 0, speculative, toolCalls: 0, toolErrors: 0, invalidCalls: 0, toolSuccess: 1,
       added: 0, removed: 0, byDay: [], recent: [], tools: [], modelRssMB: null, modelName: null,
     };
     const db = this.open();
     if (!db) return { stats: empty, ...(this.error ? { dbError: this.error } : {}) };
     const rows = db.prepare('SELECT * FROM turns ORDER BY ts').all() as unknown as {
-      ts: number; model: string | null; tool_calls: number; tool_errors: number; invalid_calls: number; prompt_tokens: number; generated_tokens: number;
+      ts: number; model: string | null; tool_calls: number; tool_errors: number; invalid_calls: number; prompt_tokens: number; cached_tokens: number; generated_tokens: number; draft_tokens: number; draft_accepted: number;
       gen_tps: number; ttft_ms: number; added: number; removed: number; rss_mb: number | null;
     }[];
     let genTime = 0;
@@ -189,6 +197,9 @@ export class StatsStore {
     for (const r of rows) {
       empty.promptTokens += r.prompt_tokens;
       empty.generatedTokens += r.generated_tokens;
+      empty.cachedTokens += r.cached_tokens;
+      empty.draftTokens += r.draft_tokens;
+      empty.draftAccepted += r.draft_accepted;
       empty.toolCalls += r.tool_calls;
       empty.toolErrors += r.tool_errors;
       empty.invalidCalls += r.invalid_calls;
@@ -214,10 +225,13 @@ export class StatsStore {
     empty.turns = rows.length;
     empty.avgGenTps = genTime > 0 ? genTok / genTime : 0;
     empty.avgTtftMs = ttftN ? ttft / ttftN : 0;
+    const promptAll = empty.promptTokens + empty.cachedTokens;
+    empty.cacheHitRate = promptAll ? empty.cachedTokens / promptAll : 0;
+    empty.acceptRate = empty.draftTokens ? empty.draftAccepted / empty.draftTokens : 0;
     const calls = empty.toolCalls;
     empty.toolSuccess = calls ? Math.max(0, (calls - empty.toolErrors - empty.invalidCalls) / calls) : 1;
     empty.byDay = fillDays(days, 30);
-    empty.recent = rows.slice(-60).map((r): TurnStat => ({ ts: r.ts, genTps: r.gen_tps, ttftMs: r.ttft_ms, generatedTokens: r.generated_tokens, promptTokens: r.prompt_tokens, toolCalls: r.tool_calls, toolErrors: r.tool_errors }));
+    empty.recent = rows.slice(-60).map((r): TurnStat => ({ ts: r.ts, genTps: r.gen_tps, ttftMs: r.ttft_ms, generatedTokens: r.generated_tokens, promptTokens: r.prompt_tokens, cachedTokens: r.cached_tokens, toolCalls: r.tool_calls, toolErrors: r.tool_errors }));
     empty.tools = (db.prepare('SELECT name, SUM(calls) AS calls, SUM(errors) AS errors FROM tool_stats GROUP BY name ORDER BY calls DESC').all() as unknown as { name: string; calls: number; errors: number }[]).map((t) => ({ name: t.name, calls: Number(t.calls), errors: Number(t.errors) }));
     return { stats: empty };
   }
@@ -226,7 +240,7 @@ export class StatsStore {
     const db = this.open();
     if (!db) return '';
     const rows = db.prepare('SELECT * FROM turns ORDER BY ts').all() as unknown as Record<string, unknown>[];
-    const cols = ['ts', 'session', 'model', 'steps', 'tool_calls', 'tool_errors', 'invalid_calls', 'prompt_tokens', 'generated_tokens', 'gen_tps', 'ttft_ms', 'duration_ms', 'added', 'removed', 'outcome', 'rss_mb'];
+    const cols = ['ts', 'session', 'model', 'steps', 'tool_calls', 'tool_errors', 'invalid_calls', 'prompt_tokens', 'cached_tokens', 'generated_tokens', 'draft_tokens', 'draft_accepted', 'gen_tps', 'ttft_ms', 'duration_ms', 'added', 'removed', 'outcome', 'rss_mb'];
     const esc = (v: unknown) => {
       const s = v === null || v === undefined ? '' : String(v);
       return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
@@ -260,7 +274,7 @@ function require_sqlite(): typeof import('node:sqlite') {
   return createRequire(import.meta.url)('node:sqlite');
 }
 
-export async function collectStats(cwd: string, store: StatsStore): Promise<ProjectStats> {
-  const [git, agent] = await Promise.all([gitActivity(cwd), Promise.resolve(store.agentStats())]);
+export async function collectStats(cwd: string, store: StatsStore, speculative = 'none'): Promise<ProjectStats> {
+  const [git, agent] = await Promise.all([gitActivity(cwd), Promise.resolve(store.agentStats(speculative))]);
   return { ...(agent.dbError ? { dbError: agent.dbError } : {}), code: scanCode(cwd), git, agent: agent.stats };
 }

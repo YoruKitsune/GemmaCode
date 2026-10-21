@@ -17,6 +17,7 @@ import {
   findChrome,
   resolveBrowserUrl,
   detectVerifyCommand,
+  effectiveSpeculative,
   loadConfig,
   runTask,
   unifiedDiff,
@@ -691,13 +692,13 @@ export class AgentHost {
       'git.status': () => files().gitStatus(),
       'stats.get': () => {
         const p = this.need();
-        return collectStats(p.cwd, p.stats);
+        return collectStats(p.cwd, p.stats, specLabel(p.config.server));
       },
       'stats.export': ({ format }) => {
         const p = this.need();
         const day = new Date().toISOString().slice(0, 10);
         if (format === 'csv') return { name: `gemmacode-stats-${day}.csv`, mime: 'text/csv', text: p.stats.turnsCsv() };
-        return collectStats(p.cwd, p.stats).then((s) => ({ name: `gemmacode-stats-${day}.json`, mime: 'application/json', text: JSON.stringify(s, null, 2) }));
+        return collectStats(p.cwd, p.stats, specLabel(p.config.server)).then((s) => ({ name: `gemmacode-stats-${day}.json`, mime: 'application/json', text: JSON.stringify(s, null, 2) }));
       },
       'fs.previewHtml': ({ path }) => files().previewHtml(path),
 
@@ -798,7 +799,7 @@ export class AgentHost {
 }
 
 function newTurnRecord(session: string, model: string | null): TurnRecord & { _tokTime: number; _firstSeen: boolean } {
-  return { ts: Date.now(), session, model, steps: 0, toolCalls: 0, toolErrors: 0, invalidCalls: 0, promptTokens: 0, generatedTokens: 0, genTps: 0, ttftMs: 0, durationMs: 0, added: 0, removed: 0, outcome: 'completed', rssMB: null, tools: {}, _tokTime: 0, _firstSeen: false };
+  return { ts: Date.now(), session, model, steps: 0, toolCalls: 0, toolErrors: 0, invalidCalls: 0, promptTokens: 0, cachedTokens: 0, generatedTokens: 0, draftTokens: 0, draftAccepted: 0, genTps: 0, ttftMs: 0, durationMs: 0, added: 0, removed: 0, outcome: 'completed', rssMB: null, tools: {}, _tokTime: 0, _firstSeen: false };
 }
 
 /** Складывает события хода в запись статистики: токены, скорость, вызовы инструментов, строки «+» и «−». */
@@ -828,6 +829,9 @@ function collectTurnEvent(rec: ReturnType<typeof newTurnRecord>, e: TurnEvent, s
       break;
     case 'timings':
       rec.promptTokens += e.timings.promptTokens;
+      rec.cachedTokens += e.timings.cachedTokens;
+      rec.draftTokens += e.timings.draftTokens ?? 0;
+      rec.draftAccepted += e.timings.draftAccepted ?? 0;
       rec.generatedTokens += e.timings.predictedTokens;
       if (e.timings.predictedTokensPerSecond > 0 && e.timings.predictedTokens >= 8) rec._tokTime += e.timings.predictedTokens / e.timings.predictedTokensPerSecond;
       rec.genTps = rec._tokTime > 0 ? rec.generatedTokens / rec._tokTime : 0;
@@ -881,4 +885,9 @@ function excludeFromGit(cwd: string): void {
   } catch {
     // не смогли — не страшно, пользователь увидит папку в git status
   }
+}
+
+/** Режим спекуляции для статистики: у чужого сервера по адресу его настройки неизвестны. */
+function specLabel(server: Parameters<typeof effectiveSpeculative>[0]): string {
+  return server.url ? 'external' : effectiveSpeculative(server);
 }

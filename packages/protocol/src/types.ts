@@ -234,6 +234,8 @@ export interface TurnStat {
   ttftMs: number;
   generatedTokens: number;
   promptTokens: number;
+  /** Токены промпта, взятые из кэша префикса (не пересчитывались). */
+  cachedTokens: number;
   toolCalls: number;
   toolErrors: number;
 }
@@ -250,6 +252,17 @@ export interface ProjectStats {
     /** Средняя скорость генерации по ходам, ток/с (взвешена по токенам). */
     avgGenTps: number;
     avgTtftMs: number;
+    /** Токены промпта из кэша префикса; `promptTokens` — только пересчитанные. */
+    cachedTokens: number;
+    /** Доля промпта, взятая из кэша: cached / (prompt + cached), 0..1. */
+    cacheHitRate: number;
+    /** Спекулятивный декодинг: предложено черновиком и принято. */
+    draftTokens: number;
+    draftAccepted: number;
+    /** Доля принятых токенов черновика, 0..1 (0, если черновиков не было). */
+    acceptRate: number;
+    /** Режим спекуляции в настройках сейчас (`none`, `ngram-simple`, …). */
+    speculative: string;
     toolCalls: number;
     toolErrors: number;
     invalidCalls: number;
@@ -370,7 +383,7 @@ export type TurnEvent =
   | { type: 'nudge'; reason: string }
   | { type: 'invalid_call'; name: string; error: string; attempt: number }
   | { type: 'compaction'; stage: 'elide' | 'summary'; before: number; after: number }
-  | { type: 'timings'; timings: { promptTokens: number; cachedTokens: number; promptTokensPerSecond: number; predictedTokens: number; predictedTokensPerSecond: number } }
+  | { type: 'timings'; timings: { promptTokens: number; cachedTokens: number; promptTokensPerSecond: number; predictedTokens: number; predictedTokensPerSecond: number; draftTokens?: number; draftAccepted?: number } }
   | { type: 'done'; reason: 'completed' | 'max_steps' | 'aborted' | 'invalid_tool_calls' | 'loop_detected' | 'error'; steps: number; message?: string }
   | { type: 'iteration'; n: number; max: number; reason: 'start' | 'verify_failed' | 'review_issues' }
   | { type: 'verify'; iteration: number; command: string; passed: boolean; exitCode: number | null; output: string }
