@@ -5,7 +5,13 @@ name: Релиз
 on:
   push:
     tags: ['v*']
+  # ручной запуск (когда тег нельзя поставить снаружи): сборка и релиз для указанного тега, тег создаёт сам релиз
   workflow_dispatch:
+    inputs:
+      tag:
+        description: Тег релиза, например v0.5.0 (пусто: только сборка без релиза)
+        required: false
+        default: ''
 
 permissions:
   contents: write
@@ -49,7 +55,7 @@ jobs:
     name: Публикация релиза
     needs: build
     runs-on: ubuntu-22.04
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') || inputs.tag != ''
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
@@ -65,6 +71,8 @@ jobs:
       - name: Релиз
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag || github.ref_name }}
         run: |
-          notes="$(awk -v v="${GITHUB_REF_NAME#v}" '$0 ~ "^## \\[?"v {f=1; next} f && /^## / {exit} f' CHANGELOG.md)"
-          gh release create "$GITHUB_REF_NAME" dist/* --title "GemmaCode ${GITHUB_REF_NAME#v}" --prerelease --notes "${notes:-Бета-сборка. Подробности в CHANGELOG.md.}"
+          tag="$TAG"
+          notes="$(awk -v v="${tag#v}" '$0 ~ "^## \\[?"v {f=1; next} f && /^## / {exit} f' CHANGELOG.md)"
+          gh release create "$tag" dist/* --target "$GITHUB_SHA" --title "GemmaCode ${tag#v}" --prerelease --notes "${notes:-Бета-сборка. Подробности в CHANGELOG.md.}"
