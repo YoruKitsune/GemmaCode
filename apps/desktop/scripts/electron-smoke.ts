@@ -4,6 +4,7 @@
 import { execFileSync, spawn } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { createServer } from 'node:http';
 import { join, resolve } from 'node:path';
 import { chromium } from 'playwright-core';
 import { startFakeServer } from '../../../packages/core/test/fixtures/fake-openai-server.ts';
@@ -19,10 +20,21 @@ const project = mkdtempSync(join(tmpdir(), 'gc-smoke-proj-'));
 writeFileSync(join(project, 'hello.txt'), 'привет\n');
 execFileSync('git', ['init', '-q', '-b', 'main'], { cwd: project });
 
-const fake = await startFakeServer([{ call: { name: 'write_file', args: { path: 'out.txt', content: 'из окна\n' } } }, { text: 'Готово, файл создан.' }]);
+let sitePortRef = 0;
+const fake = await startFakeServer([
+  { call: { name: 'write_file', args: { path: 'out.txt', content: 'из окна\n' } } },
+  { text: 'Готово, файл создан.' },
+  () => ({ call: { name: 'browser', args: { action: 'open', url: `localhost:${sitePortRef}` } } }),
+  { text: 'Страница прочитана.' },
+]);
 mkdirSync(join(home, '.gemmacode'), { recursive: true });
 writeFileSync(join(home, '.gemmacode', 'config.json'), JSON.stringify({ mode: 'auto-edit', server: { url: fake.url }, contextSize: 16384 }));
 writeFileSync(join(home, '.gemmacode', 'app.json'), JSON.stringify({ recentProjects: [project], lastProject: project }));
+
+const site = createServer((_q, res) => res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }).end('<title>Smoke site</title><h1>Страница из Electron</h1><button style="position:absolute;left:20px;top:80px;width:200px;height:60px" onclick="document.title=\'Нажато\'">Нажми</button>'));
+await new Promise<void>((r) => site.listen(0, '127.0.0.1', r));
+const sitePort = (site.address() as { port: number }).port;
+sitePortRef = sitePort;
 
 const port = 9300 + Math.floor(Math.random() * 500);
 const args = ['.', '--no-sandbox', `--remote-debugging-port=${port}`];
@@ -69,6 +81,30 @@ try {
   check('diff показан в ленте', true);
   await page.screenshot({ path: join(out, '11-electron.png') });
 
+  // встроенный браузер: страницы создаёт главный процесс (скрытое окно с отдельным профилем), управляет ими сервис по CDP
+  await page.getByRole('tab', { name: /Браузер/ }).click();
+  let brow = false;
+  try {
+    await page.getByLabel('Адрес').fill(`localhost:${sitePort}`);
+    await page.getByLabel('Адрес').press('Enter');
+    await page.locator('.btab-title', { hasText: 'Smoke site' }).waitFor({ timeout: 15000 });
+    await page.waitForFunction(() => (document.querySelector('img.browser-frame') as HTMLImageElement)?.naturalWidth > 100, undefined, { timeout: 10000 });
+    await page.locator('img.browser-frame').click({ position: { x: 60, y: 110 } });
+    await page.locator('.btab-title', { hasText: 'Нажато' }).waitFor({ timeout: 8000 });
+    brow = true;
+  } catch (e) {
+    console.log(`      ${(e as Error).message.split('\n')[0]}`);
+  }
+  check('браузер: страница в скрытом окне Electron, кадры в окне, клик пользователя доходит', brow);
+  await page.getByRole('tab', { name: /Файлы/ }).click();
+  await box.fill('Открой страницу и прочитай её');
+  await box.press('Enter');
+  await page.getByText('Страница прочитана').waitFor({ timeout: 20000 });
+  const toolMsgs = fake.requests.at(-1).messages.filter((m: { role: string }) => m.role === 'tool');
+  check('инструмент browser в Electron: снимок страницы дошёл до модели', String(toolMsgs.at(-1)?.content).includes('Страница из Electron'), String(toolMsgs.at(-1)?.content).slice(0, 200));
+  await page.getByRole('tab', { name: /Браузер/ }).click();
+  await page.screenshot({ path: join(out, '14-electron-browser.png') });
+
   await page.getByRole('tab', { name: /Терминал/ }).click();
   let term = false;
   try {
@@ -94,6 +130,7 @@ try {
   app.kill('SIGKILL');
 }
 await fake.close();
+site.close();
 if (failed) console.log(`\nЖурнал приложения:\n${log.slice(-2000)}`);
 console.log(failed ? `\nНе прошло: ${failed}` : '\nВсе проверки прошли');
 process.exit(failed ? 1 : 0);

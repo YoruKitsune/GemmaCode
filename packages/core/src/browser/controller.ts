@@ -81,6 +81,7 @@ export class BrowserController {
   private viewport: { width: number; height: number };
   private viewers = 0;
   private stateTimer: NodeJS.Timeout | undefined;
+  private infoTimer: NodeJS.Timeout | undefined;
   private creating: Promise<Tab> | undefined;
   private disposed = false;
 
@@ -313,6 +314,7 @@ export class BrowserController {
   }
 
   private async refreshInfo(tab: Tab): Promise<void> {
+    const before = JSON.stringify(tab.info);
     try {
       const v = await this.evalValue<[string, string]>(tab, '[document.title, location.href]');
       tab.info.title = v[0];
@@ -323,7 +325,7 @@ export class BrowserController {
     } catch {
       // страница закрыта или ещё не готова
     }
-    this.scheduleState();
+    if (JSON.stringify(tab.info) !== before) this.scheduleState();
   }
 
   private async evalValue<T>(tab: Tab, expression: string): Promise<T> {
@@ -613,6 +615,8 @@ export class BrowserController {
         await tab.page.send('Input.insertText', { text: ev.text });
         break;
     }
+    // клик или ввод мог сменить страницу, заголовок или адрес
+    if (ev.kind !== 'move' && ev.kind !== 'wheel') setTimeout(() => void this.refreshInfo(tab), 250);
   }
 
   async setViewport(width: number, height: number): Promise<void> {
@@ -632,10 +636,15 @@ export class BrowserController {
     return tab.page.send('Emulation.setDeviceMetricsOverride', { width: this.viewport.width, height: this.viewport.height, deviceScaleFactor: 1, mobile: false }).catch(() => undefined);
   }
 
-  /** Окно показывает браузер: пока есть зрители, активная вкладка шлёт кадры. */
+  /** Окно показывает браузер: пока есть зрители, активная вкладка шлёт кадры, а заголовок и адрес обновляются раз в секунду. */
   async attachViewer(): Promise<void> {
     this.viewers++;
     if (this.viewers === 1) {
+      this.infoTimer = setInterval(() => {
+        const t = this.activeId ? this.tabs.get(this.activeId) : undefined;
+        if (t) void this.refreshInfo(t);
+      }, 1000);
+      this.infoTimer.unref?.();
       const t = await this.current();
       await this.startScreencast(t);
     }
@@ -643,6 +652,7 @@ export class BrowserController {
 
   async detachViewer(): Promise<void> {
     this.viewers = Math.max(0, this.viewers - 1);
+    if (this.viewers === 0) clearInterval(this.infoTimer);
     if (this.viewers === 0 && this.activeId) {
       const t = this.tabs.get(this.activeId);
       if (t) await this.stopScreencast(t);
@@ -661,6 +671,7 @@ export class BrowserController {
     if (this.disposed) return;
     this.disposed = true;
     clearTimeout(this.stateTimer);
+    clearInterval(this.infoTimer);
     for (const t of this.tabs.values()) {
       t.unsubscribe();
       await t.page.close().catch(() => undefined);

@@ -57,7 +57,7 @@ function prepareAgentSession(): void {
   ses.on('will-download', (e) => e.preventDefault());
 }
 
-function newAgentPage(): string {
+async function newAgentPage(): Promise<string> {
   prepareAgentSession();
   const win = new BrowserWindow({
     show: false,
@@ -71,6 +71,8 @@ function newAgentPage(): string {
   wc.setFrameRate(30);
   wc.setUserAgent(wc.getUserAgent().replace(/\sElectron\/\S+/, '').replace(/\sgemmacode\S*/i, ''));
   wc.setWindowOpenHandler(() => ({ action: 'deny' }));
+  // пока в окне нет страницы, процесса отрисовки нет и отладчику не к чему подключаться
+  await wc.loadURL('about:blank');
   wc.debugger.attach('1.3');
   wc.debugger.on('message', (_e, method, params) => host?.postMessage({ cdpEvent: { page: id, method, params } }));
   agentPages.set(id, win);
@@ -82,7 +84,7 @@ async function handlePlatform(req: { id: number; op: string; path?: string; page
   try {
     let result: unknown;
     if (req.op === 'trash') await shell.trashItem(req.path!);
-    else if (req.op === 'browser.newPage') result = newAgentPage();
+    else if (req.op === 'browser.newPage') result = await newAgentPage();
     else if (req.op === 'browser.send') {
       const win = agentPages.get(req.page!);
       if (!win || win.isDestroyed()) throw new Error('Страница закрыта');
