@@ -3,7 +3,9 @@ import type { DayStat, ProjectStats, TurnStat } from '@gemmacode/protocol';
 import { bridge } from '../bridge';
 import { useStore } from '../store';
 
+// Цель плана 60 ток/с на M1 8 ГБ не достигнута (чистый декод ~20, со спекуляцией 25-40 на правках, 60 только на копировании): линию оставляем как ориентир, подпись честная.
 const TARGET_TPS = 60;
+const TARGET_NOTE = 'цель 60 ток/с, не достигнута на M1 8 ГБ';
 
 function fmt(n: number): string {
   return n.toLocaleString('ru-RU');
@@ -75,7 +77,7 @@ function SpeedChart({ data }: { data: TurnStat[] }) {
     <div>
       <svg viewBox={`0 0 ${W} ${H}`} className="chart" role="img" aria-label="Скорость генерации по последним ходам" onMouseLeave={() => setHover(null)}>
         <line x1="0" x2={W} y1={y(TARGET_TPS)} y2={y(TARGET_TPS)} className="target" />
-        <text x={W - 2} y={y(TARGET_TPS) - 3} textAnchor="end" className="chart-label">цель {TARGET_TPS}</text>
+        <text x={W - 2} y={y(TARGET_TPS) - 3} textAnchor="end" className="chart-label">{TARGET_NOTE}</text>
         <path d={path} className="line" />
         {pts.map((p, i) => (
           <g key={p.ts} onMouseEnter={() => setHover(i)}>
@@ -167,7 +169,7 @@ export function StatsTab({ visible }: { visible: boolean }) {
       <div className="stat-grid">
         <Card label="Ходов" value={fmt(a.turns)} />
         <Card label="Токенов сгенерировано" value={fmt(a.generatedTokens)} hint={`на входе ${fmt(a.promptTokens)}`} />
-        <Card label="Скорость, ток/с" value={a.turns ? a.avgGenTps.toFixed(1) : '—'} hint={`цель — ${TARGET_TPS}`} />
+        <Card label="Скорость, ток/с" value={a.turns ? a.avgGenTps.toFixed(1) : '—'} hint={TARGET_NOTE} />
         <Card label="До первого токена" value={a.turns ? `${(a.avgTtftMs / 1000).toFixed(1)} с` : '—'} />
         <Card label="Кэш префикса" value={a.cachedTokens + a.promptTokens ? `${Math.round(a.cacheHitRate * 100)}%` : '—'} hint={`из кэша ${fmt(a.cachedTokens)}, пересчитано ${fmt(a.promptTokens)}`} />
         <Card label="Ускорение" value={a.speculative === 'none' ? 'выключено' : a.speculative === 'external' ? 'чужой сервер' : a.speculative} hint={a.draftTokens ? `принято ${Math.round(a.acceptRate * 100)}% из ${fmt(a.draftTokens)} токенов черновика` : 'черновиков пока не было'} />

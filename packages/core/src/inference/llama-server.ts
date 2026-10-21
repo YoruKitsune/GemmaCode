@@ -47,6 +47,11 @@ export class LlamaServerBackend implements InferenceBackend {
       stderrTail = (stderrTail + d.toString()).slice(-4000);
     });
     const exited = new Promise<never>((_, reject) => {
+      // нет файла или нет прав: без обработчика 'error' процесс-хозяин упал бы с необработанным событием
+      proc.once('error', (e: NodeJS.ErrnoException) => {
+        this.status = 'stopped';
+        reject(new Error(e.code === 'ENOENT' ? `llama-server не найден (${this.config.binary}). Укажите путь в настройках («Дополнительно») или установите llama.cpp.` : `Не удалось запустить llama-server: ${e.message}`));
+      });
       proc.once('exit', (code) => {
         this.status = 'stopped';
         reject(new Error(`llama-server завершился с кодом ${code}\n${stderrTail}`));

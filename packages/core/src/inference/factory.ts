@@ -1,6 +1,7 @@
 import type { InferenceBackend } from './backend.ts';
 import type { ServerSettings } from '../config/load.ts';
 import { DEFAULT_SPECULATIVE, type ServerConfig, type SpecType } from './args.ts';
+import { resolveLlamaBinary } from './binary.ts';
 import { AttachedBackend, LlamaServerBackend } from './llama-server.ts';
 
 /** Режим спекуляции, который получит свой llama-server: из настроек, иначе по умолчанию. Неизвестное значение в конфиге тоже даёт умолчание. */
@@ -14,7 +15,7 @@ export function createBackend(s: ServerSettings, contextSize: number): Inference
   if (s.url) return new AttachedBackend(s.url);
   if (!s.modelFile && !s.hf) return null;
   const cfg: ServerConfig = {
-    binary: s.binary ?? 'llama-server',
+    binary: resolveLlamaBinary(s.binary).binary,
     port: s.port ?? 8811,
     model: s.hf ? { hf: s.hf } : { file: s.modelFile!, ...(s.mmproj ? { mmproj: s.mmproj } : {}) },
     multimodal: Boolean(s.mmproj),
