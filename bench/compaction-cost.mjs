@@ -4,7 +4,7 @@
 //   warm    — тот же префикс плюс один новый шаг (так идёт обычный ход)
 //   elide   — старые результаты инструментов заменены заглушками (ступень 1 сжатия)
 //   summary — старые шаги заменены сводкой, остаётся хвост из 8 сообщений (ступень 2)
-// Запуск: node bench/compaction-cost.mjs --model-file ФАЙЛ.gguf --bin llama-server [--ctx 16384] [--out каталог]
+// Запуск: node bench/compaction-cost.mjs --model-file ФАЙЛ.gguf --bin llama-server [--ctx 16384] [--lines 24] [--out каталог]
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { withServer } from './lib/server.mjs';
@@ -16,6 +16,8 @@ const arg = (n, d) => {
 const out = arg('out', join(process.cwd(), 'bench/results/compaction'));
 mkdirSync(out, { recursive: true });
 const ctx = Number(arg('ctx', '16384'));
+// строк кода в одном результате инструмента: токенизатор Gemma даёт около 37 токенов на строку, 24 строки на 11 шагов — около 11K токенов
+const LINES = Number(arg('lines', '24'));
 const bin = arg('bin', 'llama-server');
 const file = arg('model-file');
 if (!file) throw new Error('Нужен --model-file');
@@ -30,7 +32,7 @@ function history(steps, { elide = 0, summaryKeep = 0 } = {}) {
   for (let i = 0; i < steps; i++) {
     msgs.push({ role: 'assistant', content: '', tool_calls: [{ id: `c${i}`, type: 'function', function: { name: 'read_file', arguments: JSON.stringify({ path: `src/f${i}.ts` }) } }] });
     const stub = i < elide;
-    msgs.push({ role: 'tool', tool_call_id: `c${i}`, content: stub ? `[output omitted to save context]: read_file src/f${i}.ts, 9000 chars` : code(i, 60) });
+    msgs.push({ role: 'tool', tool_call_id: `c${i}`, content: stub ? `[output omitted to save context]: read_file src/f${i}.ts, 9000 chars` : code(i, LINES) });
   }
   if (summaryKeep) {
     const head = msgs.slice(0, 2);
