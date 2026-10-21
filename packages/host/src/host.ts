@@ -129,6 +129,20 @@ class Project {
   }
 }
 
+/** Заглушка вместо движка, пока модель не настроена: сессии и история доступны, а отправка сообщения объясняет, что делать. */
+class MissingBackend implements InferenceBackend {
+  readonly status = 'stopped' as const;
+  async start(): Promise<void> {
+    throw new Error(NOT_CONFIGURED);
+  }
+  async stop(): Promise<void> {}
+  async *chat(): AsyncGenerator<never> {
+    throw new Error(NOT_CONFIGURED);
+  }
+}
+
+const NOT_CONFIGURED = 'Модель не настроена. Откройте настройки и укажите файл модели (GGUF) или адрес llama-server.';
+
 const BUILTIN_COMMANDS: CommandInfo[] = [
   { name: 'mode', description: 'Права: read-only, ask, auto-edit, full', kind: 'command' },
   { name: 'verify', description: 'Проверка после задачи: /verify npm test | auto | off', kind: 'command' },
@@ -212,7 +226,7 @@ export class AgentHost {
   }
 
   private ensureBackend(p: Project): Promise<void> {
-    if (!p.backend) return Promise.reject(new Error('Модель не настроена. Откройте настройки и укажите файл модели (GGUF) или адрес llama-server.'));
+    if (!p.backend) return Promise.reject(new Error(NOT_CONFIGURED));
     if (p.backend.status === 'ready') {
       if (p.status !== 'ready') this.setStatus(p, 'ready');
       return Promise.resolve();
@@ -329,8 +343,7 @@ export class AgentHost {
     for (const t of p.mcp.tools()) registry.register(t);
     const policy = new PermissionPolicy({ mode: p.config.mode, cwd: p.cwd, sandboxEnforced: p.sandbox.enforced, rules: p.config.permissions });
     const snapshots = new SnapshotStore(p.cwd, id);
-    const backend = p.backend;
-    if (!backend) throw new Error('Модель не настроена');
+    const backend = p.backend ?? new MissingBackend();
     let live!: LiveSession;
     const agent = new Agent({
       backend,
@@ -395,7 +408,7 @@ export class AgentHost {
     const p = this.need();
     if (this.activeTurn) throw new Error('Агент занят другим ходом. Дождитесь его завершения или остановите.');
     if (!text.trim() && !attachments.length) throw new Error('Пустое сообщение');
-    await this.ensureBackend(p);
+    if (!p.backend) throw new Error(NOT_CONFIGURED);
     const live = this.session(p, sessionId);
     const built = buildUserContent(p.cwd, text, attachments);
     if (built.hasMedia && !p.config.server.url && !p.config.server.mmproj) {
@@ -407,6 +420,7 @@ export class AgentHost {
     const checkpoint = live.snapshots.list().length + 1;
     const item: FeedItem = { kind: 'user', id: `u${Date.now().toString(36)}`, text, attachments: built.ui.attachments.map((a) => ({ name: a.name, kind: a.kind as AttachmentRef['kind'], relPaths: a.relPaths, ...(a.note ? { note: a.note } : {}) })), checkpoint };
     live.feed = [...live.feed, item];
+    // Сообщение появляется в окне сразу, даже если модель ещё загружается (это секунды, а на холодном старте десятки секунд).
     this.emit('turn.start', { sessionId, item });
     void this.runTurn(p, live, built.content, built.ui, text);
     return { ok: true };
@@ -418,6 +432,8 @@ export class AgentHost {
       ...(live.verify ? { verify: live.verify, maxIterations: p.config.maxIterations } : {}),
     };
     try {
+      await this.ensureBackend(p);
+      if (live.abort?.signal.aborted) throw new Error('Остановлено до запуска модели');
       for await (const e of runTask(live.agent, content, opts, live.abort?.signal)) {
         const event = e as TurnEvent;
         live.feed = applyTurnEvent(live.feed, event);

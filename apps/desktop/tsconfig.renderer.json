@@ -3,7 +3,9 @@
   "compilerOptions": {
     "jsx": "react-jsx",
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["node"],
+    "allowImportingTsExtensions": true,
     "noEmit": true
   },
-  "include": ["src/renderer", "src/shared"]
+  "include": ["src/renderer"]
 }

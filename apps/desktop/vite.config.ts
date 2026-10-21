@@ -5,6 +5,6 @@ export default defineConfig({
   root: 'src/renderer',
   base: './',
   plugins: [react()],
-  build: { outDir: '../../dist/renderer', emptyOutDir: true },
-  server: { port: 5173, strictPort: true },
+  build: { outDir: '../../dist/renderer', emptyOutDir: true, chunkSizeWarningLimit: 900 },
+  server: { port: 5173, strictPort: true, host: '127.0.0.1' },
 });

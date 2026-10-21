@@ -320,7 +320,8 @@ test('без настроенной модели ход не стартует, �
   const proj = await host.call('project.open', { path: dir });
   assert.equal(proj.path, dir);
   assert.deepEqual(events.find((e) => e.n === 'backend.status')!.d, { status: 'stopped', message: 'Модель не настроена' });
-  await assert.rejects(host.call('session.create', {}), /Модель не настроена/);
+  const s = await host.call('session.create', {});
+  assert.equal(s.feed.length, 0);
   await assert.rejects(host.call('chat.send', { sessionId: 'x', text: 'привет', attachments: [] }), /Модель не настроена/);
   await host.shutdown();
 });

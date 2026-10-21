@@ -6,3 +6,4 @@ out/
 bench/results/
 bench/.cache/
 eval/results/
+apps/desktop/e2e-out/
