@@ -24,6 +24,8 @@ export interface PolicyOptions {
   /** Команды реально ограничены песочницей ОС. */
   sandboxEnforced: boolean;
   rules?: PermissionRules;
+  /** Сайты, которые уже открыты в браузере (например, самим пользователем): повторного вопроса не нужно. */
+  isBrowserHostAllowed?: (host: string) => boolean;
 }
 
 /**
@@ -37,6 +39,7 @@ export class PermissionPolicy {
   private readonly cwd: string;
   private readonly sandboxEnforced: boolean;
   private readonly rules: PermissionRules;
+  private readonly browserHostAllowed: ((host: string) => boolean) | undefined;
   private readonly grants = new Set<string>();
 
   constructor(opts: PolicyOptions) {
@@ -44,6 +47,7 @@ export class PermissionPolicy {
     this.cwd = opts.cwd;
     this.sandboxEnforced = opts.sandboxEnforced;
     this.rules = opts.rules ?? {};
+    this.browserHostAllowed = opts.isBrowserHostAllowed;
   }
 
   grant(key: string): void {
@@ -138,7 +142,7 @@ export class PermissionPolicy {
         }
         const host = u.hostname.toLowerCase();
         if (host === 'localhost' || host.endsWith('.localhost') || host === '127.0.0.1' || host === '[::1]') return { action: 'allow' };
-        if (full || allowedByRule || this.grants.has(`browser:host:${host}`)) return { action: 'allow' };
+        if (full || allowedByRule || this.grants.has(`browser:host:${host}`) || this.browserHostAllowed?.(host)) return { action: 'allow' };
         if (this.mode === 'read-only') return { action: 'deny', reason: `Read-only mode: the browser may only open local pages (${host} is not local).` };
         return { action: 'ask', reason: `Opens a website: ${host}`, grantKey: `browser:host:${host}`, grantLabel: `${host} in this session`, sticky: true };
       }

@@ -27,6 +27,8 @@ export interface GemmaConfig {
   permissions: { allow: string[]; deny: string[] };
   mcpServers: Record<string, McpServerConfig>;
   server: ServerSettings;
+  /** Встроенный браузер: путь к Chrome/Chromium для режимов без Electron. */
+  browser: { executablePath?: string };
   /** Команда проверки для режима loop: 'auto' — определить по проекту; пусто — выключено. */
   verify?: string;
   review: boolean;
@@ -43,6 +45,7 @@ export const DEFAULT_CONFIG: GemmaConfig = {
   permissions: { allow: [], deny: [] },
   mcpServers: {},
   server: {},
+  browser: {},
   review: false,
   maxIterations: 4,
 };
@@ -59,7 +62,7 @@ export function configPaths(cwd: string, home = homedir()): string[] {
 /** Читает пользовательский и проектный конфиг (проектный главнее). Ошибки формата возвращаются списком, а не роняют запуск. */
 export function loadConfig(cwd: string, home = homedir()): { config: GemmaConfig; warnings: string[] } {
   const warnings: string[] = [];
-  let config: GemmaConfig = { ...DEFAULT_CONFIG, permissions: { allow: [], deny: [] }, mcpServers: {}, server: {} };
+  let config: GemmaConfig = { ...DEFAULT_CONFIG, permissions: { allow: [], deny: [] }, mcpServers: {}, server: {}, browser: {} };
   for (const file of configPaths(cwd, home)) {
     if (!existsSync(file)) continue;
     try {
@@ -73,7 +76,7 @@ export function loadConfig(cwd: string, home = homedir()): { config: GemmaConfig
 }
 
 function merge(base: GemmaConfig, raw: Record<string, unknown>, file: string, warnings: string[]): GemmaConfig {
-  const out: GemmaConfig = { ...base, permissions: { ...base.permissions }, mcpServers: { ...base.mcpServers }, server: { ...base.server } };
+  const out: GemmaConfig = { ...base, permissions: { ...base.permissions }, mcpServers: { ...base.mcpServers }, server: { ...base.server }, browser: { ...base.browser } };
   const pick = <T extends string>(key: string, allowed: string[]): T | undefined => {
     const v = raw[key];
     if (v === undefined) return undefined;
@@ -103,6 +106,8 @@ function merge(base: GemmaConfig, raw: Record<string, unknown>, file: string, wa
       else warnings.push(`${file}: mcpServers.${name} needs "command" or "url"`);
     }
   }
+  const br = raw.browser as { executablePath?: unknown } | undefined;
+  if (br && typeof br.executablePath === 'string') out.browser.executablePath = br.executablePath;
   if (raw.server && typeof raw.server === 'object') out.server = { ...out.server, ...(raw.server as ServerSettings) };
   return out;
 }

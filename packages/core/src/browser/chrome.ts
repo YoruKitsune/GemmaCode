@@ -5,8 +5,9 @@ import { join } from 'node:path';
 import type { PageFactory, PageHandle } from './types.ts';
 
 /** Где искать Chromium-совместимый браузер, если путь не задан: переменная окружения, типичные места ОС, сборки Playwright. */
-export function findChrome(env: NodeJS.ProcessEnv = process.env): string | undefined {
+export function findChrome(explicit?: string, env: NodeJS.ProcessEnv = process.env): string | undefined {
   const candidates: string[] = [];
+  if (explicit) candidates.push(explicit);
   if (env.CHROME_PATH) candidates.push(env.CHROME_PATH);
   if (process.platform === 'darwin') {
     for (const app of ['Google Chrome', 'Chromium', 'Microsoft Edge', 'Brave Browser']) {

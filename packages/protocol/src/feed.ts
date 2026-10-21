@@ -16,7 +16,7 @@ export type StoredMessage =
 let seq = 0;
 const nid = (p: string) => `${p}${++seq}`;
 
-const ERROR_RESULT = /^(Invalid arguments|Denied|old_string|File not found|Failed|Tool crashed|Unknown tool|Directory not found|Invalid regular expression)/;
+const ERROR_RESULT = /^(Invalid arguments|Denied|old_string|File not found|Failed|Tool crashed|Unknown tool|Browser error|Could not (?:load|open)|The site is not allowed|Screenshots are unavailable|Element \[|Directory not found|Invalid regular expression)/;
 
 function toolItem(call: { id: string; name: string; arguments: string }): Extract<FeedItem, { kind: 'tool' }> {
   let args: Record<string, unknown> = {};
@@ -25,7 +25,7 @@ function toolItem(call: { id: string; name: string; arguments: string }): Extrac
   } catch {
     // невалидные аргументы показываем пустыми
   }
-  const target = args.path ?? args.command ?? args.pattern ?? args.name ?? '';
+  const target = call.name === 'browser' ? [args.action, args.url ?? (args.ref !== undefined ? `[${String(args.ref)}]` : '')].filter(Boolean).join(' ') : (args.path ?? args.command ?? args.pattern ?? args.name ?? '');
   return { kind: 'tool', id: call.id, name: call.name, summary: `${call.name}${target ? ` ${String(target)}` : ''}`, args, status: 'running' };
 }
 
@@ -40,7 +40,7 @@ export function feedFromMessages(messages: readonly StoredMessage[]): FeedItem[]
         feed.push({ kind: 'note', id: nid('n'), level: 'info', text: 'Контекст был сжат: старые шаги заменены краткой сводкой.' });
         continue;
       }
-      if (!m.ui && /^(The check `|Review of your changes|Your reply was not valid JSON)/.test(text)) continue;
+      if (!m.ui && /^(The check `|Review of your changes|Your reply was not valid JSON|You have tools and must use them|\[Image from the )/.test(text)) continue;
       feed.push({ kind: 'user', id: nid('u'), text: stripNotes(text), attachments: m.ui?.attachments ?? [], ...(m.checkpoint ? { checkpoint: m.checkpoint } : {}) });
     } else if (m.role === 'assistant') {
       if (m.content.trim()) feed.push({ kind: 'assistant', id: nid('a'), text: m.content });

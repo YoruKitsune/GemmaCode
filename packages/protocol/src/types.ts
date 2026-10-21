@@ -211,6 +211,33 @@ export interface CommandInfo {
   kind: 'command' | 'skill';
 }
 
+// ---------- браузер ----------
+
+export interface BrowserTab {
+  id: string;
+  url: string;
+  title: string;
+  loading: boolean;
+  canGoBack: boolean;
+  canGoForward: boolean;
+}
+
+export interface BrowserState {
+  /** Есть чем открывать страницы (в приложении всегда; без Electron нужен Chrome или Chromium). */
+  available: boolean;
+  /** Почему браузер недоступен. */
+  reason?: string;
+  tabs: BrowserTab[];
+  active: string | null;
+}
+
+export type BrowserInputWire =
+  | { kind: 'click'; x: number; y: number; button?: 'left' | 'right'; count?: number }
+  | { kind: 'move'; x: number; y: number }
+  | { kind: 'wheel'; x: number; y: number; dx: number; dy: number }
+  | { kind: 'key'; key: string; code?: string; text?: string; modifiers?: number }
+  | { kind: 'text'; text: string };
+
 // ---------- методы ----------
 
 export interface Methods {
@@ -251,6 +278,16 @@ export interface Methods {
   'backend.start': { params: Record<string, never>; result: null };
   'backend.stop': { params: Record<string, never>; result: null };
   'commands.list': { params: Record<string, never>; result: CommandInfo[] };
+
+  /** Окно показывает вкладку браузера: сервис начинает слать кадры. */
+  'browser.attach': { params: { width: number; height: number }; result: BrowserState };
+  'browser.detach': { params: Record<string, never>; result: null };
+  /** Пользователь ввёл адрес: сайт, который он открыл сам, становится разрешённым для агента. */
+  'browser.open': { params: { url: string; newTab?: boolean }; result: BrowserState };
+  'browser.nav': { params: { action: 'back' | 'forward' | 'reload' | 'stop' }; result: BrowserState };
+  'browser.tab': { params: { action: 'new' | 'close' | 'activate'; id?: string }; result: BrowserState };
+  'browser.input': { params: BrowserInputWire; result: null };
+  'browser.viewport': { params: { width: number; height: number }; result: null };
 
   'term.open': { params: { cols: number; rows: number }; result: { id: string; shell: string } };
   'term.write': { params: { id: string; data: string }; result: null };
@@ -293,6 +330,9 @@ export interface HostEvents {
   /** Файлы проекта изменились (агентом или откатом): дереву и открытым вкладкам пора обновиться. */
   'fs.changed': { paths: string[]; source: 'agent' | 'rollback' | 'external' };
   'sessions.changed': { sessions: SessionSummary[] };
+  'browser.state': BrowserState;
+  'browser.frame': { tab: string; data: string; width: number; height: number };
+  'browser.blocked': { url: string; reason: string };
   'term.data': { id: string; data: string };
   'term.exit': { id: string; code: number | null };
 }

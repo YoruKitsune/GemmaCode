@@ -3,6 +3,8 @@ import { homedir, totalmem } from 'node:os';
 import { basename, join, resolve } from 'node:path';
 import {
   Agent,
+  BrowserController,
+  ChromeFactory,
   McpManager,
   PermissionPolicy,
   SessionStore,
@@ -11,6 +13,8 @@ import {
   createBackend,
   createRegistry,
   detectSandbox,
+  findChrome,
+  resolveBrowserUrl,
   detectVerifyCommand,
   loadConfig,
   runTask,
@@ -18,6 +22,7 @@ import {
   type ApprovalAnswer as CoreApprovalAnswer,
   type GemmaConfig,
   type InferenceBackend,
+  type PageFactory,
   type RunOptions,
 } from '@gemmacode/core';
 import type {
@@ -26,6 +31,7 @@ import type {
   ApprovalRequestWire,
   AttachmentRef,
   BackendStatus,
+  BrowserState,
   CheckpointInfo,
   CommandInfo,
   FeedItem,
@@ -58,6 +64,11 @@ export interface HostOptions {
   ptyLoader?: ConstructorParameters<typeof Terminals>[1];
   /** Следить за файлами проекта и сообщать окну об изменениях извне. */
   watchFiles?: boolean;
+  /**
+   * Откуда берутся страницы встроенного браузера. В приложении это страницы Electron; без него по умолчанию запускается
+   * Chrome или Chromium, если он найден (иначе браузера нет, а инструмент `browser` не предлагается модели).
+   */
+  browserFactory?: (config: GemmaConfig) => Promise<PageFactory>;
 }
 
 type Listener = (event: string, data: unknown) => void;
@@ -89,6 +100,32 @@ class LiveSession {
   }
 }
 
+/** Фабрика, которая создаёт настоящую (браузер, процесс) только при первой странице. */
+class LazyPageFactory implements PageFactory {
+  private inner: Promise<PageFactory> | undefined;
+  private readonly make: () => Promise<PageFactory>;
+
+  constructor(make: () => Promise<PageFactory>) {
+    this.make = make;
+  }
+
+  async newPage() {
+    this.inner ??= this.make();
+    try {
+      return await (await this.inner).newPage();
+    } catch (e) {
+      this.inner = undefined;
+      throw e;
+    }
+  }
+
+  async dispose(): Promise<void> {
+    const inner = this.inner;
+    this.inner = undefined;
+    if (inner) await (await inner).dispose().catch(() => undefined);
+  }
+}
+
 interface ProjectParts {
   cwd: string;
   config: GemmaConfig;
@@ -99,6 +136,8 @@ interface ProjectParts {
   store: SessionStore;
   warnings: string[];
   sandbox: ReturnType<typeof detectSandbox>;
+  browser: BrowserController | null;
+  browserReason: string | undefined;
 }
 
 class Project {
@@ -115,6 +154,8 @@ class Project {
   readonly store: SessionStore;
   readonly warnings: string[];
   readonly sandbox: ReturnType<typeof detectSandbox>;
+  readonly browser: BrowserController | null;
+  readonly browserReason: string | undefined;
 
   constructor(parts: ProjectParts) {
     this.cwd = parts.cwd;
@@ -126,6 +167,8 @@ class Project {
     this.store = parts.store;
     this.warnings = parts.warnings;
     this.sandbox = parts.sandbox;
+    this.browser = parts.browser;
+    this.browserReason = parts.browserReason;
   }
 }
 
@@ -261,7 +304,21 @@ export class AgentHost {
     }
     const sandbox = detectSandbox();
     if (sandbox.kind === 'none') warnings.push('Песочницы ОС нет: каждая команда shell потребует подтверждения.');
-    const p = new Project({ cwd, config: loaded.config, backend: this.makeBackend(loaded.config), files: new ProjectFiles(cwd, this.opts.platform), skills, mcp, store: new SessionStore(cwd), warnings, sandbox });
+    const browserReason = this.opts.browserFactory || findChrome(loaded.config.browser.executablePath) ? undefined : 'Не найден Chrome или Chromium. Укажите путь в ~/.gemmacode/config.json ("browser": {"executablePath": …}) или переменной CHROME_PATH.';
+    const browser = browserReason
+      ? null
+      : new BrowserController({
+          fileRoots: [cwd],
+          factory: new LazyPageFactory(() =>
+            this.opts.browserFactory ? this.opts.browserFactory(loaded.config) : ChromeFactory.launch(loaded.config.browser.executablePath ? { executablePath: loaded.config.browser.executablePath } : {}),
+          ),
+        });
+    browser?.onEvent((e) => {
+      if (e.type === 'state') this.emit('browser.state', { available: true, tabs: e.tabs, active: e.active });
+      else if (e.type === 'frame') this.emit('browser.frame', { tab: e.tab, data: e.data, width: e.width, height: e.height });
+      else this.emit('browser.blocked', { url: e.url, reason: e.reason });
+    });
+    const p = new Project({ cwd, config: loaded.config, backend: this.makeBackend(loaded.config), files: new ProjectFiles(cwd, this.opts.platform), skills, mcp, store: new SessionStore(cwd), warnings, sandbox, browser, browserReason });
     this.project = p;
     excludeFromGit(cwd);
     if (this.opts.watchFiles) this.watchProject(p);
@@ -303,6 +360,7 @@ export class AgentHost {
     this.terminals.closeAll();
     this.activeTurn = undefined;
     await p.mcp.close().catch(() => undefined);
+    await p.browser?.dispose().catch(() => undefined);
     await p.backend?.stop().catch(() => undefined);
     this.emit('backend.status', { status: 'stopped' });
   }
@@ -339,9 +397,9 @@ export class AgentHost {
   private session(p: Project, id: string): LiveSession {
     const existing = p.live.get(id);
     if (existing) return existing;
-    const registry = createRegistry(p.config.toolset, { skills: p.skills.size > 0 });
+    const registry = createRegistry(p.config.toolset, { skills: p.skills.size > 0, browser: Boolean(p.browser) });
     for (const t of p.mcp.tools()) registry.register(t);
-    const policy = new PermissionPolicy({ mode: p.config.mode, cwd: p.cwd, sandboxEnforced: p.sandbox.enforced, rules: p.config.permissions });
+    const policy = new PermissionPolicy({ mode: p.config.mode, cwd: p.cwd, sandboxEnforced: p.sandbox.enforced, rules: p.config.permissions, ...(p.browser ? { isBrowserHostAllowed: (h: string) => p.browser!.isAllowed(`https://${h}/`) } : {}) });
     const snapshots = new SnapshotStore(p.cwd, id);
     const backend = p.backend ?? new MissingBackend();
     let live!: LiveSession;
@@ -351,6 +409,8 @@ export class AgentHost {
       registry,
       policy,
       sandbox: p.sandbox,
+      ...(p.browser ? { browser: p.browser } : {}),
+      vision: Boolean(p.config.server.url || p.config.server.mmproj),
       skills: p.skills,
       snapshots,
       store: p.store,
@@ -499,6 +559,11 @@ export class AgentHost {
     return out;
   }
 
+  private browserState(p: Project): BrowserState {
+    if (!p.browser) return { available: false, ...(p.browserReason ? { reason: p.browserReason } : {}), tabs: [], active: null };
+    return { available: true, tabs: p.browser.tabList(), active: p.browser.activeTab?.id ?? null };
+  }
+
   // ---------- методы ----------
 
   private buildHandlers(): Handlers {
@@ -626,6 +691,62 @@ export class AgentHost {
           ...BUILTIN_COMMANDS,
           ...p.skills.list().map((s): CommandInfo => ({ name: s.name, description: s.description, kind: 'skill' })),
         ];
+      },
+
+      'browser.attach': async ({ width, height }) => {
+        const b = this.need().browser;
+        if (!b) return this.browserState(this.need());
+        try {
+          await b.setViewport(width, height);
+          await b.attachViewer();
+        } catch (e) {
+          return { available: false, reason: (e as Error).message, tabs: [], active: null };
+        }
+        return this.browserState(this.need());
+      },
+      'browser.detach': async () => {
+        await this.project?.browser?.detachViewer();
+        return null;
+      },
+      'browser.open': async ({ url, newTab }) => {
+        const p = this.need();
+        const b = p.browser;
+        if (!b) throw new Error(p.browserReason ?? 'Браузер недоступен');
+        const target = resolveBrowserUrl(url, p.cwd);
+        if (!target) throw new Error(`Не понял адрес «${url}». Введите http(s)://… , localhost:порт или путь к файлу проекта.`);
+        const u = new URL(target);
+        if (u.protocol === 'http:' || u.protocol === 'https:') b.allowHost(u.hostname);
+        else if (!b.isAllowed(target)) throw new Error('Файл вне проекта открывать нельзя.');
+        if (newTab || !b.activeTab) await b.newTab();
+        void b.navigate(target).catch(() => undefined);
+        return this.browserState(p);
+      },
+      'browser.nav': async ({ action }) => {
+        const p = this.need();
+        const b = p.browser;
+        if (!b) throw new Error(p.browserReason ?? 'Браузер недоступен');
+        if (action === 'back') await b.history(-1);
+        else if (action === 'forward') await b.history(1);
+        else if (action === 'reload') await b.reload();
+        else await b.stop();
+        return this.browserState(p);
+      },
+      'browser.tab': async ({ action, id }) => {
+        const p = this.need();
+        const b = p.browser;
+        if (!b) throw new Error(p.browserReason ?? 'Браузер недоступен');
+        if (action === 'new') await b.newTab();
+        else if (action === 'close' && id) await b.closeTab(id);
+        else if (action === 'activate' && id) await b.activate(id);
+        return this.browserState(p);
+      },
+      'browser.input': async (ev) => {
+        await this.project?.browser?.input(ev);
+        return null;
+      },
+      'browser.viewport': async ({ width, height }) => {
+        await this.project?.browser?.setViewport(width, height);
+        return null;
       },
 
       'term.open': ({ cols, rows }) => this.terminals.open(this.need().cwd, cols, rows),
