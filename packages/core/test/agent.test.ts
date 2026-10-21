@@ -315,3 +315,50 @@ test('shouldNudgeToolUse: границы', async () => {
   assert.equal(shouldNudgeToolUse('Что такое замыкание?', 'Could you share more details about the context?'), false);
   assert.equal(shouldNudgeToolUse('Исправь sum в utils.js', 'Готово, функция исправлена.'), false);
 });
+
+test('инструмент вернул картинку: модель получает её следующим сообщением пользователя', async () => {
+  const dir = tempProject();
+  const registry = createRegistry('edit');
+  registry.register({
+    name: 'shot',
+    description: 'x',
+    parameters: { type: 'object', properties: {}, additionalProperties: false },
+    risk: 'meta',
+    inspect: () => ({ summary: 'shot' }),
+    run: async () => ({ content: 'saved', images: [join(dir, 's.jpg')] }),
+  });
+  const { agent, backend } = mkAgent(dir, [{ calls: [{ name: 'shot', args: {} }] }, { text: 'вижу' }], { registry });
+  await run(agent, 'сними');
+  const msgs = backend.requests[1]!.messages;
+  const last = msgs[msgs.length - 1]!;
+  assert.equal(last.role, 'user');
+  assert.deepEqual((last.content as any[]).map((p) => p.type), ['text', 'image']);
+});
+
+test('браузер: разовое «Разрешить» запоминает домен на сессию (sticky)', async () => {
+  const dir = tempProject();
+  const registry = createRegistry('edit', { browser: true });
+  const opened: string[] = [];
+  const fakeBrowser = {
+    allowHost() {},
+    isTrustedPage: () => false,
+    async navigate(u: string) {
+      opened.push(u);
+      return { ok: true };
+    },
+    async snapshotText() {
+      return 'Page: x';
+    },
+  };
+  const asked: ApprovalRequest[] = [];
+  const open = (u: string) => ({ calls: [{ name: 'browser', args: { action: 'open', url: u } }] });
+  const { agent } = mkAgent(dir, [open('https://docs.example.org/a'), open('https://docs.example.org/b'), { text: 'ok' }], {
+    registry,
+    mode: 'ask',
+    browser: fakeBrowser as never,
+    approve: async (r) => (asked.push(r), 'allow'),
+  });
+  await run(agent, 'открой документацию');
+  assert.equal(asked.length, 1);
+  assert.equal(opened.length, 2);
+});

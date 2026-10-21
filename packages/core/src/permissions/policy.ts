@@ -8,7 +8,8 @@ export type PermissionMode = 'read-only' | 'ask' | 'auto-edit' | 'full';
 
 export type Decision =
   | { action: 'allow' }
-  | { action: 'ask'; reason: string; grantKey?: string; grantLabel?: string }
+  /** `sticky`: разрешение (даже разовое) запоминается на сессию, потому что браузер не умеет «один запрос» (домен остаётся открытым для ссылок на странице). */
+  | { action: 'ask'; reason: string; grantKey?: string; grantLabel?: string; sticky?: boolean }
   | { action: 'deny'; reason: string };
 
 export interface PermissionRules {
@@ -63,7 +64,7 @@ export class PermissionPolicy {
       if (this.mode === 'read-only') return { action: 'deny', reason: 'The command mentions a secrets or browser data location.' };
       return { action: 'ask', reason: 'The command mentions a secrets or browser data location.' };
     }
-    const target = intent.command ?? (paths[0] ? displayPath(this.cwd, paths[0]) : '');
+    const target = intent.command ?? intent.url ?? (paths[0] ? displayPath(this.cwd, paths[0]) : '');
     if (this.matches(this.rules.deny, tool.name, target)) return { action: 'deny', reason: 'Blocked by a deny rule.' };
 
     const risk = tool.risk;
@@ -115,6 +116,32 @@ export class PermissionPolicy {
       case 'host':
         if (full) return { action: 'allow' };
         return { action: 'ask', reason: 'Controls a program on this computer' };
+
+      case 'browser': {
+        const action = String(args.action ?? '');
+        if (action !== 'open') {
+          // клики и ввод меняют состояние чужих сайтов, в режиме чтения их нет; всё остальное только смотрит
+          if (this.mode === 'read-only' && (action === 'click' || action === 'type' || action === 'press')) return { action: 'deny', reason: 'Read-only mode: clicking and typing in the browser are not allowed.' };
+          return { action: 'allow' };
+        }
+        if (!intent.url) return { action: 'deny', reason: 'This is not an address the browser can open. Use http(s)://…, localhost:PORT or a project file path.' };
+        let u: URL;
+        try {
+          u = new URL(intent.url);
+        } catch {
+          return { action: 'deny', reason: 'Invalid address.' };
+        }
+        if (u.protocol === 'about:') return { action: 'allow' };
+        if (u.protocol === 'file:') {
+          if (outside.length && !full && !allowedByRule) return { action: 'ask', reason: `Opens a file outside the project: ${outside[0]}`, grantKey: `browser:file:${outside[0]}`, grantLabel: 'this file', sticky: true };
+          return { action: 'allow' };
+        }
+        const host = u.hostname.toLowerCase();
+        if (host === 'localhost' || host.endsWith('.localhost') || host === '127.0.0.1' || host === '[::1]') return { action: 'allow' };
+        if (full || allowedByRule || this.grants.has(`browser:host:${host}`)) return { action: 'allow' };
+        if (this.mode === 'read-only') return { action: 'deny', reason: `Read-only mode: the browser may only open local pages (${host} is not local).` };
+        return { action: 'ask', reason: `Opens a website: ${host}`, grantKey: `browser:host:${host}`, grantLabel: `${host} in this session`, sticky: true };
+      }
 
       case 'external':
         if (full || allowedByRule || granted) return { action: 'allow' };

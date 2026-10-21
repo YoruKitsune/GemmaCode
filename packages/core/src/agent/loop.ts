@@ -11,6 +11,7 @@ import { displayPath, isInside } from '../tools/paths.ts';
 import type { ToolRegistry } from '../tools/registry.ts';
 import type { ToolContext, ToolResult } from '../tools/types.ts';
 import { existsSync, readFileSync } from 'node:fs';
+import type { BrowserController } from '../browser/controller.ts';
 import { validateArgs } from '../tools/validate.ts';
 import type { AgentEvent, ApprovalAnswer, ApprovalRequest, SessionStats } from './events.ts';
 import { buildSystemPrompt } from './prompt.ts';
@@ -30,6 +31,10 @@ export interface AgentOptions {
   snapshots?: SnapshotStore;
   skills?: SkillCatalog;
   sandbox?: SandboxRunner;
+  /** Встроенный браузер для инструмента browser. */
+  browser?: BrowserController;
+  /** Модель принимает картинки: без этого инструмент browser не делает снимков экрана. */
+  vision?: boolean;
   toolCallMode?: ToolCallMode;
   /** model: только инструмент skill; explicit: плюс `/имя`; auto: плюс подбор по тексту запроса ядром. */
   skillRouting?: SkillRouting;
@@ -91,6 +96,8 @@ export class Agent {
       ...(opts.snapshots ? { snapshots: opts.snapshots } : {}),
       ...(opts.skills ? { skills: opts.skills } : {}),
       sandbox: opts.sandbox ?? detectSandbox(),
+      ...(opts.browser ? { browser: opts.browser } : {}),
+      ...(opts.vision !== undefined ? { vision: opts.vision } : {}),
       todos: [],
     };
     if (opts.store && opts.sessionId) this.messages.push(...opts.store.load(opts.sessionId));
@@ -357,7 +364,7 @@ export class Agent {
         });
       }
       yield { type: 'approval', id: call.id, answer: this.o.approve ? answer : 'auto-denied', reason: decision.reason };
-      if (answer === 'allow-session' && decision.grantKey) this.o.policy.grant(decision.grantKey);
+      if (decision.grantKey && (answer === 'allow-session' || (answer === 'allow' && decision.sticky))) this.o.policy.grant(decision.grantKey);
       decision = answer === 'deny' ? { action: 'deny', reason: 'The user declined this action.' } : { action: 'allow' };
     }
     if (decision.action === 'deny') {
@@ -378,6 +385,10 @@ export class Agent {
     if (result.untrusted || (tool.risk === 'read' && outside) || tool.risk === 'external') this.o.policy.markTainted();
     const content = truncateMiddle(result.content, this.o.toolOutputChars);
     this.push({ role: 'tool', toolCallId: call.id, content });
+    if (result.images?.length) {
+      // модель видит картинку только в сообщении пользователя: показываем снимок экрана следующим сообщением
+      this.push({ role: 'user', content: [{ type: 'text', text: `[Image from the ${tool.name} tool result above]` }, ...result.images.map((path): ContentPart => ({ type: 'image', path }))] });
+    }
     let diff = '';
     if (preview && !result.isError) {
       const after = readTextOrNull(preview.path);

@@ -1,5 +1,6 @@
 import type { ToolDefinition } from '../inference/backend.ts';
 import { editFile, globTool, grep, listDir, readFile, writeFile } from './fs-tools.ts';
+import { browserTool } from './browser.ts';
 import { hostApp } from './host-app.ts';
 import { skillTool, todoTool } from './meta-tools.ts';
 import { shell } from './shell.ts';
@@ -38,11 +39,13 @@ const TOOLSETS: Record<Toolset, Tool<any>[]> = {
   full: [readFile, listDir, globTool, grep, writeFile, editFile, shell, skillTool, todoTool, hostApp],
 };
 
-export function createRegistry(toolset: Toolset = 'edit', opts: { skills?: boolean } = {}): ToolRegistry {
+export function createRegistry(toolset: Toolset = 'edit', opts: { skills?: boolean; browser?: boolean } = {}): ToolRegistry {
   const reg = new ToolRegistry();
   for (const t of TOOLSETS[toolset]) {
     if (t.name === 'skill' && opts.skills === false) continue;
     reg.register(t);
   }
+  // Браузер добавляется только там, где он есть (окно), и не в режиме «чтение»: лишний инструмент стоит контекста и точности вызовов
+  if (opts.browser && toolset !== 'read') reg.register(browserTool);
   return reg;
 }
