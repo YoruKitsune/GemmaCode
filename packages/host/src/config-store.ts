@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, statSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
 import type { FoundModel, ServerSettings, Settings } from '@gemmacode/protocol';
 
@@ -107,6 +107,14 @@ export function scanModels(home: string, limit = 40): FoundModel[] {
       walk(join(dir, e.name), depth - 1);
     }
   };
-  for (const r of MODEL_ROOTS(home)) if (existsSync(r.dir)) walk(r.dir, r.depth);
+  // На регистронезависимых ФС (macOS, Windows) `models` и `Models` — один каталог: обходим каждый реальный путь один раз.
+  const seen = new Set<string>();
+  for (const r of MODEL_ROOTS(home)) {
+    if (!existsSync(r.dir)) continue;
+    const real = realpathSync.native(r.dir);
+    if (seen.has(real)) continue;
+    seen.add(real);
+    walk(r.dir, r.depth);
+  }
   return [...found.values()].sort((a, b) => a.sizeMB - b.sizeMB).slice(0, limit);
 }
