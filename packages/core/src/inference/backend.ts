@@ -48,6 +48,9 @@ export interface Timings {
   promptTokensPerSecond: number;
   predictedTokens: number;
   predictedTokensPerSecond: number;
+  /** Спекулятивный декодинг: сколько токенов предложил черновик и сколько из них принял основной проход. */
+  draftTokens?: number;
+  draftAccepted?: number;
 }
 
 export type ChatChunk =

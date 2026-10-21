@@ -27,7 +27,12 @@ test('AttachedBackend: потоковые дельты, вызов инстру�
       policy: new PermissionPolicy({ mode: 'auto-edit', cwd: dir, sandboxEnforced: true }),
     });
     const events: string[] = [];
-    for await (const e of agent.send('замени old на new')) events.push(e.type);
+    let draft: unknown;
+    for await (const e of agent.send('замени old на new')) {
+      events.push(e.type);
+      if (e.type === 'timings') draft = [e.timings.draftTokens, e.timings.draftAccepted];
+    }
+    assert.deepEqual(draft, [16, 12]);
     assert.equal(readFileSync(join(dir, 'a.txt'), 'utf8'), 'new value');
     assert.ok(events.includes('timings'));
     assert.equal(events.at(-1), 'done');

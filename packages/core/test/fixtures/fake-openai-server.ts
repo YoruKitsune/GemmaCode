@@ -38,7 +38,7 @@ export async function startFakeServer(script: FakeTurn[]): Promise<{ url: string
           send({ choices: [{ delta: { tool_calls: [{ index: n, function: { arguments: args.slice(cut) } }] } }] });
         }
       }
-      send({ choices: [{ delta: {}, finish_reason: 'text' in turn ? 'stop' : 'tool_calls' }], timings: { prompt_n: 120, cache_n: 30, prompt_per_second: 250, predicted_n: 20, predicted_per_second: 21.5 } });
+      send({ choices: [{ delta: {}, finish_reason: 'text' in turn ? 'stop' : 'tool_calls' }], timings: { prompt_n: 120, cache_n: 30, prompt_per_second: 250, predicted_n: 20, predicted_per_second: 21.5, draft_n: 16, draft_n_accepted: 12 } });
       res.end('data: [DONE]\n\n');
     });
   });

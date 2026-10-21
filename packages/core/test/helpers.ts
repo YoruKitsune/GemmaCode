@@ -13,7 +13,7 @@ export function tempProject(files: Record<string, string> = {}): string {
   return dir;
 }
 
-export type Scripted = { throws?: string; text?: string; calls?: { name: string; args: unknown }[]; timings?: { promptTokens: number; cachedTokens: number; predictedTokens: number } };
+export type Scripted = { throws?: string; text?: string; calls?: { name: string; args: unknown }[]; timings?: { promptTokens: number; cachedTokens: number; predictedTokens: number; draftTokens?: number; draftAccepted?: number } };
 
 /** Движок с заранее заданными ответами: по одному на каждый вызов chat. Запросы сохраняются для проверок. */
 export class ScriptedBackend implements InferenceBackend {

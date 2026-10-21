@@ -1,7 +1,13 @@
 import type { InferenceBackend } from './backend.ts';
 import type { ServerSettings } from '../config/load.ts';
-import type { ServerConfig } from './args.ts';
+import { DEFAULT_SPECULATIVE, type ServerConfig, type SpecType } from './args.ts';
 import { AttachedBackend, LlamaServerBackend } from './llama-server.ts';
+
+/** Режим спекуляции, который получит свой llama-server: из настроек, иначе по умолчанию. Неизвестное значение в конфиге тоже даёт умолчание. */
+export function effectiveSpeculative(s: ServerSettings): SpecType {
+  const allowed: SpecType[] = ['none', 'ngram-simple', 'ngram-map-k', 'ngram-mod'];
+  return s.speculative && allowed.includes(s.speculative) ? s.speculative : DEFAULT_SPECULATIVE;
+}
 
 /** Движок по настройкам: готовый сервер по URL либо свой процесс llama-server. null — модель не настроена. */
 export function createBackend(s: ServerSettings, contextSize: number): InferenceBackend | null {
@@ -15,7 +21,7 @@ export function createBackend(s: ServerSettings, contextSize: number): Inference
     contextSize,
     kvCacheType: 'q8_0',
     reasoning: 'off',
-    speculative: s.speculative ?? 'none',
+    speculative: effectiveSpeculative(s),
   };
   return new LlamaServerBackend(cfg);
 }

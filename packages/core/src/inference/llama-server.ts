@@ -191,6 +191,8 @@ interface WireChunk {
     prompt_per_second: number;
     predicted_n: number;
     predicted_per_second: number;
+    draft_n?: number;
+    draft_n_accepted?: number;
   };
 }
 
@@ -201,6 +203,7 @@ function toTimings(t: NonNullable<WireChunk['timings']>): Timings {
     promptTokensPerSecond: t.prompt_per_second,
     predictedTokens: t.predicted_n,
     predictedTokensPerSecond: t.predicted_per_second,
+    ...(t.draft_n !== undefined ? { draftTokens: t.draft_n, draftAccepted: t.draft_n_accepted ?? 0 } : {}),
   };
 }
 
