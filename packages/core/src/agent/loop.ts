@@ -1,4 +1,4 @@
-import type { ChatMessage, ContentPart, InferenceBackend, ToolCall } from '../inference/backend.ts';
+import type { ChatMessage, ContentPart, InferenceBackend, ToolCall, UserMessageUi } from '../inference/backend.ts';
 import { compactHistory, totalTokens } from '../context/compact.ts';
 import { truncateMiddle } from '../context/truncate.ts';
 import type { PermissionPolicy } from '../permissions/policy.ts';
@@ -6,9 +6,11 @@ import { detectSandbox, type SandboxRunner } from '../sandbox/index.ts';
 import type { SessionStore } from '../session/store.ts';
 import type { SkillCatalog } from '../skills/catalog.ts';
 import type { SnapshotStore } from '../snapshot/store.ts';
-import { isInside } from '../tools/paths.ts';
+import { unifiedDiff } from '../snapshot/diff.ts';
+import { displayPath, isInside } from '../tools/paths.ts';
 import type { ToolRegistry } from '../tools/registry.ts';
 import type { ToolContext, ToolResult } from '../tools/types.ts';
+import { existsSync, readFileSync } from 'node:fs';
 import { validateArgs } from '../tools/validate.ts';
 import type { AgentEvent, ApprovalAnswer, ApprovalRequest, SessionStats } from './events.ts';
 import { buildSystemPrompt } from './prompt.ts';
@@ -97,6 +99,23 @@ export class Agent {
     if (this.o.store && this.o.sessionId) this.o.store.rewrite(this.o.sessionId, this.messages);
   }
 
+  /**
+   * Откат к началу хода с контрольной точкой `id`: файлы возвращаются к состоянию до него, а история обрезается
+   * до сообщения пользователя, открывшего ход. Если сообщение уже ушло в сводку при сжатии контекста, история остаётся,
+   * а модель получает пометку о том, что файлы восстановлены.
+   */
+  rollbackTo(id: number): { files: string[]; historyTrimmed: boolean } {
+    const files = this.o.snapshots?.rollbackTo(id) ?? [];
+    const i = this.messages.findIndex((m) => m.role === 'user' && m.checkpoint === id);
+    if (i >= 0) {
+      this.messages.length = i;
+      if (this.o.store && this.o.sessionId) this.o.store.rewrite(this.o.sessionId, this.messages);
+    }
+    this.lastContextTokens = 0;
+    if (i < 0 && files.length) this.addNotice(`The user reverted your changes, these files were restored: ${files.join(', ')}.`);
+    return { files, historyTrimmed: i >= 0 };
+  }
+
   get systemPrompt(): string {
     return this.system;
   }
@@ -115,9 +134,9 @@ export class Agent {
   }
 
   /** Один ход пользователя: цикл «модель — инструмент — результат» до ответа без вызова. */
-  async *send(input: string | ContentPart[], signal?: AbortSignal): AsyncGenerator<AgentEvent> {
+  async *send(input: string | ContentPart[], signal?: AbortSignal, ui?: UserMessageUi): AsyncGenerator<AgentEvent> {
     const text = typeof input === 'string' ? input : input.filter((p): p is Extract<ContentPart, { type: 'text' }> => p.type === 'text').map((p) => p.text).join(' ');
-    this.o.snapshots?.begin(text.slice(0, 80));
+    const checkpoint = this.o.snapshots?.begin(text.slice(0, 80));
 
     const routed = this.routeSkill(text);
     let userContent: string | ContentPart[] = input;
@@ -132,7 +151,7 @@ export class Agent {
       this.notices = [];
       userContent = typeof userContent === 'string' ? note + userContent : [{ type: 'text', text: note }, ...userContent];
     }
-    this.push({ role: 'user', content: userContent });
+    this.push({ role: 'user', content: userContent, ...(checkpoint ? { checkpoint: checkpoint.id } : {}), ...(ui ? { ui } : {}) });
 
     let invalidStreak = 0;
     let lastSig = '';
@@ -153,7 +172,7 @@ export class Agent {
           try {
             turnText = '';
             calls.length = 0;
-            const req = strategy.request(this.system, this.messages, this.o.registry.definitions(), { maxTokens: this.o.maxTokens, temperature: this.o.temperature });
+            const req = strategy.request(this.system, withoutOldMedia(this.messages), this.o.registry.definitions(), { maxTokens: this.o.maxTokens, temperature: this.o.temperature });
             for await (const chunk of this.o.backend.chat(req, signal)) {
               if (chunk.type === 'text') {
                 turnText += chunk.delta;
@@ -298,6 +317,9 @@ export class Agent {
       return 'ok';
     }
 
+    const preview = tool.preview ? safePreview(tool, v.args, this.ctx) : null;
+    const previewDiff = preview ? unifiedDiff(displayPath(this.ctx.cwd, preview.path), preview.before, preview.after) : '';
+
     let decision = this.o.policy.decide(tool, v.args, intent);
     if (decision.action === 'ask') {
       let answer: ApprovalAnswer = 'deny';
@@ -307,6 +329,7 @@ export class Agent {
           summary: intent.summary,
           reason: decision.reason,
           ...(call.name === 'shell' ? { detail: String(v.args.command ?? '') } : {}),
+          ...(previewDiff ? { diff: previewDiff } : {}),
           ...(decision.grantLabel ? { grantLabel: decision.grantLabel } : {}),
         });
       }
@@ -332,7 +355,43 @@ export class Agent {
     if (result.untrusted || (tool.risk === 'read' && outside) || tool.risk === 'external') this.o.policy.markTainted();
     const content = truncateMiddle(result.content, this.o.toolOutputChars);
     this.push({ role: 'tool', toolCallId: call.id, content });
-    yield { type: 'tool_result', id: call.id, name: call.name, content, isError: result.isError === true, touched: result.touched ?? [], ms: Date.now() - t0 };
+    let diff = '';
+    if (preview && !result.isError) {
+      const after = readTextOrNull(preview.path);
+      if (after !== null) diff = unifiedDiff(displayPath(this.ctx.cwd, preview.path), preview.before, after);
+    }
+    yield { type: 'tool_result', id: call.id, name: call.name, content, isError: result.isError === true, touched: result.touched ?? [], ms: Date.now() - t0, ...(diff ? { diff } : {}) };
     return 'ok';
   }
+}
+
+function safePreview(tool: import('../tools/types.ts').Tool<any>, args: Record<string, unknown>, ctx: ToolContext): import('../tools/types.ts').ToolPreview | null {
+  try {
+    return tool.preview?.(args, ctx) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function readTextOrNull(abs: string): string | null {
+  try {
+    return existsSync(abs) ? readFileSync(abs, 'utf8') : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Картинки и звук прошлых ходов не отправляются модели повторно: каждая стоит сотни токенов контекста, а контекст на 8 ГБ мал.
+ * Остаются вложения последнего сообщения пользователя с медиа; в истории вместо остальных стоит пометка.
+ */
+export function withoutOldMedia(messages: readonly ChatMessage[]): ChatMessage[] {
+  let last = -1;
+  messages.forEach((m, i) => {
+    if (m.role === 'user' && Array.isArray(m.content) && m.content.some((p) => p.type !== 'text')) last = i;
+  });
+  return messages.map((m, i) => {
+    if (m.role !== 'user' || !Array.isArray(m.content) || i === last || !m.content.some((p) => p.type !== 'text')) return m;
+    return { ...m, content: m.content.map((p): ContentPart => (p.type === 'text' ? p : { type: 'text', text: `[${p.type} attachment omitted from context; ask the user to attach it again if needed]` })) };
+  });
 }

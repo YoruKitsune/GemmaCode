@@ -121,7 +121,7 @@ export function compactHistory(messages: ChatMessage[], target: number, keepRece
   const tail = current.slice(cut);
   const head = tail[0];
   if (head && head.role === 'user' && typeof head.content === 'string') {
-    current = [{ role: 'user', content: `${summary.content as string}\n\n${head.content}` }, ...tail.slice(1)];
+    current = [{ role: 'user', content: `${summary.content as string}\n\n${head.content}`, ...(head.checkpoint ? { checkpoint: head.checkpoint } : {}), ...(head.ui ? { ui: head.ui } : {}) }, ...tail.slice(1)];
   } else {
     current = [summary, ...tail];
   }

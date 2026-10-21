@@ -87,6 +87,11 @@ export const writeFile: Tool<{ path: string; content: string }> = {
     const abs = resolveUserPath(ctx.cwd, a.path);
     return { summary: `write ${displayPath(ctx.cwd, abs)} (${a.content.split('\n').length} lines)`, paths: [abs] };
   },
+  preview: (a, ctx) => {
+    const abs = resolveUserPath(ctx.cwd, a.path);
+    const cur = readText(abs);
+    return { path: abs, before: cur.ok ? cur.text : null, after: a.content };
+  },
   async run(a, ctx) {
     const abs = resolveUserPath(ctx.cwd, a.path);
     let existed = true;
@@ -127,6 +132,15 @@ export const editFile: Tool<EditArgs> = {
   inspect: (a, ctx) => {
     const abs = resolveUserPath(ctx.cwd, a.path);
     return { summary: `edit ${displayPath(ctx.cwd, abs)}`, paths: [abs] };
+  },
+  preview: (a, ctx) => {
+    const abs = resolveUserPath(ctx.cwd, a.path);
+    const r = readText(abs);
+    if (!r.ok || a.old_string === '' || a.old_string === a.new_string) return null;
+    const crlf = r.text.includes('\r\n');
+    const text = crlf ? r.text.replace(/\r\n/g, '\n') : r.text;
+    const found = applyEdit(text, a.old_string.replace(/\r\n/g, '\n'), a.new_string.replace(/\r\n/g, '\n'), a.replace_all === true);
+    return found.ok ? { path: abs, before: text, after: found.text } : null;
   },
   async run(a, ctx) {
     const abs = resolveUserPath(ctx.cwd, a.path);

@@ -107,6 +107,21 @@ export class SnapshotStore {
     return parts.join('\n');
   }
 
+  /** Файлы, изменённые именно в ходе `id`, и их diff (состояние до хода против состояния перед следующим ходом). */
+  checkpointChanges(id: number): { path: string; diff: string; created: boolean; deleted: boolean }[] {
+    const cp = this.checkpoints.find((c) => c.id === id);
+    if (!cp) return [];
+    const out: { path: string; diff: string; created: boolean; deleted: boolean }[] = [];
+    for (const rel of Object.keys(cp.files).sort()) {
+      const before = this.originalText(rel, id);
+      const after = this.originalText(rel, id + 1);
+      if (before === after) continue;
+      const diff = unifiedDiff(rel, before, after);
+      if (diff) out.push({ path: rel, diff, created: before === null, deleted: after === null });
+    }
+    return out;
+  }
+
   /** Возвращает файлы к состоянию до контрольной точки `id` и забывает её и все более поздние. */
   rollbackTo(id: number): string[] {
     const restored = new Set<string>();

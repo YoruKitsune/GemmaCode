@@ -24,3 +24,6 @@ export * from './snapshot/diff.ts';
 export { execCommand } from './tools/shell.ts';
 export * from './mcp/manager.ts';
 export * from './config/load.ts';
+export * from './inference/factory.ts';
+export { walkFiles, loadGitignore, globToRegExp, ALWAYS_IGNORED } from './tools/glob.ts';
+export { forbiddenReason, isInside, realish, displayPath, resolveUserPath } from './tools/paths.ts';

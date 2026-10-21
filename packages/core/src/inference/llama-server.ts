@@ -34,6 +34,10 @@ export class LlamaServerBackend implements InferenceBackend {
     this.status = 'starting';
     const proc = spawn(this.config.binary, buildServerArgs(this.config), { stdio: ['ignore', 'ignore', 'pipe'] });
     this.proc = proc;
+    // Дочерний процесс не должен пережить нас: при падении или закрытии окна он держал бы гигабайты памяти.
+    const killWithParent = () => proc.kill('SIGKILL');
+    process.once('exit', killWithParent);
+    proc.once('exit', () => process.off('exit', killWithParent));
     let stderrTail = '';
     proc.stderr?.on('data', (d: Buffer) => {
       stderrTail = (stderrTail + d.toString()).slice(-4000);

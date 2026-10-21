@@ -34,6 +34,13 @@ export interface ToolIntent {
   command?: string;
 }
 
+export interface ToolPreview {
+  /** Абсолютный путь. */
+  path: string;
+  before: string | null;
+  after: string;
+}
+
 export interface Tool<A = Record<string, unknown>> {
   name: string;
   description: string;
@@ -41,6 +48,8 @@ export interface Tool<A = Record<string, unknown>> {
   parameters: JsonSchemaObject;
   risk: ToolRisk;
   inspect(args: A, ctx: ToolContext): ToolIntent;
+  /** Что будет записано, без записи: для показа diff в запросе подтверждения. Не обязателен. */
+  preview?(args: A, ctx: ToolContext): ToolPreview | null;
   run(args: A, ctx: ToolContext): Promise<ToolResult>;
 }
 

@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { ContentPart } from '../inference/backend.ts';
+import type { ContentPart, UserMessageUi } from '../inference/backend.ts';
 import { execCommand } from '../tools/shell.ts';
 import type { Agent } from './loop.ts';
 import type { AgentEvent } from './events.ts';
@@ -17,6 +17,8 @@ export interface RunOptions {
   review?: boolean;
   maxReviewRounds?: number;
   reviewMaxDiffChars?: number;
+  /** Что показать в ленте вместо служебного текста первого сообщения (текст пользователя и вложения). */
+  ui?: UserMessageUi;
 }
 
 export type RunOutcome = 'verified' | 'completed' | 'max_iterations' | 'no_progress' | 'agent_stopped' | 'aborted';
@@ -71,7 +73,7 @@ export async function* runTask(agent: Agent, input: string | ContentPart[], opts
     yield { type: 'iteration', n: iterations, max: maxIter, reason };
     let stop: AgentEvent | undefined;
     let touched = 0;
-    for await (const e of agent.send(prompt, signal)) {
+    for await (const e of agent.send(prompt, signal, iterations === 1 ? opts.ui : undefined)) {
       yield e;
       if (e.type === 'tool_result') touched += e.touched.length;
       if (e.type === 'done') stop = e;

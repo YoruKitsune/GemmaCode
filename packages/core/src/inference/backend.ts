@@ -6,6 +6,12 @@ export type ContentPart =
   | { type: 'audio'; path: string }
   | { type: 'video'; path: string };
 
+/** Что видит пользователь вместо служебного текста сообщения: его слова и вложения. Движок это поле не получает. */
+export interface UserMessageUi {
+  text: string;
+  attachments: { name: string; kind: string; relPaths: string[]; note?: string }[];
+}
+
 export interface ToolCall {
   id: string;
   name: string;
@@ -15,7 +21,8 @@ export interface ToolCall {
 
 export type ChatMessage =
   | { role: 'system'; content: string }
-  | { role: 'user'; content: string | ContentPart[] }
+  /** `checkpoint` — номер контрольной точки откатов, открытой этим сообщением (см. snapshot/store.ts). */
+  | { role: 'user'; content: string | ContentPart[]; checkpoint?: number; ui?: UserMessageUi }
   | { role: 'assistant'; content: string; toolCalls?: ToolCall[] }
   | { role: 'tool'; toolCallId: string; content: string };
 

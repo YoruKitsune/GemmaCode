@@ -1,4 +1,4 @@
-import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { ChatMessage } from '../inference/backend.ts';
 
@@ -51,15 +51,44 @@ export class SessionStore {
     return out;
   }
 
+  delete(id: string): void {
+    rmSync(this.file(id), { force: true });
+  }
+
+  /** Заголовок — начало первого сообщения пользователя. Читается только начало файла: история может быть большой. */
+  private titleOf(file: string): string {
+    let fd: number | undefined;
+    try {
+      fd = openSync(file, 'r');
+      const buf = Buffer.alloc(256 * 1024);
+      const n = readSync(fd, buf, 0, buf.length, 0);
+      for (const line of buf.subarray(0, n).toString('utf8').split('\n')) {
+        if (!line.trim()) continue;
+        let m: ChatMessage;
+        try {
+          m = JSON.parse(line) as ChatMessage;
+        } catch {
+          continue;
+        }
+        if (m.role !== 'user') continue;
+        const text = m.ui?.text ?? (typeof m.content === 'string' ? m.content : m.content.filter((p) => p.type === 'text').map((p) => (p as { text: string }).text).join(' '));
+        return text.replace(/\s+/g, ' ').trim().slice(0, 80);
+      }
+    } catch {
+      // файл пропал или не читается
+    } finally {
+      if (fd !== undefined) closeSync(fd);
+    }
+    return '';
+  }
+
   list(): SessionInfo[] {
     if (!existsSync(this.dir)) return [];
     return readdirSync(this.dir)
       .filter((f) => f.endsWith('.jsonl'))
       .map((f) => {
-        const id = f.slice(0, -6);
-        const first = this.load(id).find((m) => m.role === 'user');
-        const title = first && typeof first.content === 'string' ? first.content.slice(0, 80) : '';
-        return { id, updatedAt: statSync(join(this.dir, f)).mtimeMs, title };
+        const file = join(this.dir, f);
+        return { id: f.slice(0, -6), updatedAt: statSync(file).mtimeMs, title: this.titleOf(file) };
       })
       .sort((a, b) => b.updatedAt - a.updatedAt);
   }
