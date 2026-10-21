@@ -57,7 +57,12 @@ export class StepLog {
   private last = 0;
   private cur: StepRecord | undefined;
 
-  constructor(readonly file: string, readonly mode: string) {
+  readonly file: string;
+  readonly mode: string;
+
+  constructor(file: string, mode: string) {
+    this.file = file;
+    this.mode = mode;
     mkdirSync(dirname(file), { recursive: true });
   }
 
