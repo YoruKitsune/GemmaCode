@@ -140,7 +140,7 @@ export function encodeWav(samples: Float32Array, sampleRate: number): ArrayBuffe
 
 export async function prepareAny(file: Blob, name: string): Promise<PreparedAttachment> {
   const kind = classify(name, file.type);
-  if (kind === 'video') throw new Error('Видео появится в M3. Пока можно приложить кадры как картинки.');
+  if (kind === 'video') throw new Error('Видео не поддерживается: приложите кадры как картинки или звук отдельным файлом.');
   if (kind === 'image') return prepareImage(file, name);
   if (kind === 'audio') return prepareAudio(file, name);
   return { name, mime: file.type || 'application/octet-stream', kind, parts: [await blobToBase64(file)], estTokens: 0 };

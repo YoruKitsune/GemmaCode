@@ -110,6 +110,9 @@ export function applyTurnEvent(feed: readonly FeedItem[], ev: TurnEvent): FeedIt
     case 'fallback':
       out.push({ kind: 'note', id: nid('n'), level: 'info', text: 'Сервер не разобрал вызов инструмента; шаг повторён в режиме строгой схемы.' });
       return out;
+    case 'nudge':
+      out.push({ kind: 'note', id: nid('n'), level: 'info', text: 'Модель попросила содержимое файла у пользователя; напомнил ей про инструменты чтения.' });
+      return out;
     case 'verify':
       out.push({ kind: 'verify', id: nid('v'), command: ev.command, passed: ev.passed, output: ev.output, iteration: ev.iteration });
       return out;

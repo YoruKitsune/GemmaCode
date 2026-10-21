@@ -44,6 +44,20 @@ export interface AgentOptions {
   systemExtra?: string;
 }
 
+const TOOL_NUDGE =
+  'You have tools and must use them instead of asking me. You cannot see the files unless you call read_file, list_dir, glob or grep. Call the right tool now; do not ask me for file contents.';
+
+/**
+ * Маленькая модель на просьбу «исправь функцию в utils.js» иногда отвечает «пришлите содержимое файла» и не зовёт read_file.
+ * Узнаём этот случай: пользователь назвал файл или попросил правку, а ответ без вызова просит у него содержимое или признаётся, что не видит файлов.
+ */
+export function shouldNudgeToolUse(userText: string, reply: string): boolean {
+  const fileRef = /(?:^|[\s"'`(])[\w./-]+\.[A-Za-z][A-Za-z0-9]{0,5}(?=$|[\s"'`).,:;!?])/.test(userText);
+  const editAsk = /\b(fix|edit|change|update|refactor|implement|rename|add|remove|delete|read|open|find|look at|check)\b|исправ|измен|поправ|добав|удал|перепиш|найд|прочита|открой|посмотр|проверь|реализу|переимен/i.test(userText);
+  if (!fileRef && !editAsk) return false;
+  return /\b(provide|paste|share|send (?:me|the)|show me|upload|could you (?:give|share|provide)|please (?:give|provide)|content of|contents of|which file|don'?t have access|can'?t (?:see|access|read)|cannot (?:see|access|read)|unable to (?:see|access|read))\b|пришл|предостав|покаж|вставь|скопируй|отправь|не вижу|не могу (?:прочитать|увидеть|получить|открыть)|нет доступа|содержимое файла|какой файл/i.test(reply);
+}
+
 const DENIED_HINT = 'Do not retry the same action. Choose another approach or explain to the user what you need.';
 
 export class Agent {
@@ -156,6 +170,8 @@ export class Agent {
     let invalidStreak = 0;
     let lastSig = '';
     let sameCount = 0;
+    let nudged = false;
+    let anyCall = false;
 
     for (let step = 1; step <= this.o.maxSteps; step++) {
       if (signal?.aborted) {
@@ -220,6 +236,13 @@ export class Agent {
       if (!strategy.streamsText && turn.text) yield { type: 'text', delta: turn.text };
 
       this.push({ role: 'assistant', content: turn.text, ...(turn.calls.length ? { toolCalls: turn.calls } : {}) });
+      if (turn.calls.length === 0 && !nudged && !anyCall && this.o.registry.get('read_file') && shouldNudgeToolUse(text, turn.text)) {
+        nudged = true;
+        yield { type: 'nudge', reason: 'The model asked for file contents instead of reading them; asking it to use the tools.' };
+        this.push({ role: 'user', content: TOOL_NUDGE });
+        continue;
+      }
+      if (turn.calls.length) anyCall = true;
       if (turn.calls.length === 0) {
         yield { type: 'done', reason: 'completed', steps: step };
         return;

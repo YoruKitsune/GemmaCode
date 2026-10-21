@@ -271,6 +271,7 @@ export type TurnEvent =
   | { type: 'approval'; id: string; answer: ApprovalAnswer | 'auto-denied'; reason: string }
   | { type: 'tool_result'; id: string; name: string; content: string; isError: boolean; touched: string[]; ms: number; diff?: string }
   | { type: 'fallback'; reason: string }
+  | { type: 'nudge'; reason: string }
   | { type: 'invalid_call'; name: string; error: string; attempt: number }
   | { type: 'compaction'; stage: 'elide' | 'summary'; before: number; after: number }
   | { type: 'timings'; timings: { promptTokens: number; cachedTokens: number; promptTokensPerSecond: number; predictedTokens: number; predictedTokensPerSecond: number } }

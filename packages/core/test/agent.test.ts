@@ -280,3 +280,38 @@ test('соглашения проекта подсказываются и в п�
   const dir = tempProject({ 'package.json': '{"type":"module"}' });
   assert.match(mkAgent(dir, [{ text: 'ok' }]).agent.systemPrompt, /ES modules/);
 });
+
+test('просьба прислать файл вместо read_file: один раз напоминаем про инструменты', async () => {
+  const dir = tempProject({ 'utils.js': 'export const sum = (a, b) => a - b;\n' });
+  const { agent, backend } = mkAgent(dir, [
+    { text: 'Please provide the content of utils.js so I can fix the sum function for you.' },
+    { calls: [{ name: 'read_file', args: { path: 'utils.js' } }] },
+    { calls: [{ name: 'edit_file', args: { path: 'utils.js', old_string: 'a - b', new_string: 'a + b' } }] },
+    { text: 'Готово.' },
+  ]);
+  const ev = await run(agent, 'Исправь функцию sum в utils.js: она должна складывать');
+  assert.ok(ev.some((e) => e.type === 'nudge'));
+  assert.equal(readFileSync(join(dir, 'utils.js'), 'utf8'), 'export const sum = (a, b) => a + b;\n');
+  assert.equal(done(ev).reason, 'completed');
+  const second = backend.requests[1]!.messages;
+  assert.match(String(second[second.length - 1]!.content), /must use them/);
+});
+
+test('напоминание не повторяется и не срабатывает на обычный ответ', async () => {
+  const dir = tempProject({ 'utils.js': 'x' });
+  const ask = { text: 'Could you paste the contents of utils.js?' };
+  const { agent } = mkAgent(dir, [ask, ask]);
+  const ev = await run(agent, 'Исправь utils.js');
+  assert.equal(ev.filter((e) => e.type === 'nudge').length, 1);
+  assert.equal(done(ev).reason, 'completed');
+  const d2 = tempProject();
+  const { agent: a2 } = mkAgent(d2, [{ text: 'Привет! Чем помочь?' }]);
+  assert.equal((await run(a2, 'Привет')).some((e) => e.type === 'nudge'), false);
+});
+
+test('shouldNudgeToolUse: границы', async () => {
+  const { shouldNudgeToolUse } = await import('../src/agent/loop.ts');
+  assert.equal(shouldNudgeToolUse('Исправь sum в utils.js', 'Пришлите содержимое файла'), true);
+  assert.equal(shouldNudgeToolUse('Что такое замыкание?', 'Could you share more details about the context?'), false);
+  assert.equal(shouldNudgeToolUse('Исправь sum в utils.js', 'Готово, функция исправлена.'), false);
+});

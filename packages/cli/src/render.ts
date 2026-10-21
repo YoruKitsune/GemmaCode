@@ -67,6 +67,9 @@ export class Renderer {
       case 'fallback':
         this.line(dim(`↯ ${e.reason}`));
         break;
+      case 'nudge':
+        this.line(dim(`↯ ${e.reason}`));
+        break;
       case 'invalid_call':
         this.line(`  ${yellow('!')} ${dim(truncateMiddle(e.error, 140))}`);
         break;
