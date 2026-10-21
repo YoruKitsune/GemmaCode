@@ -10,11 +10,10 @@
     "build:renderer": "vite build",
     "build": "npm run build:host && npm run build:main && npm run build:renderer",
     "dev": "npm run build:host && npm run build:main && concurrently -k \"vite\" \"wait-on tcp:5173 && cross-env GEMMACODE_DEV_URL=http://localhost:5173 electron .\"",
-    "dev:web": "node --experimental-strip-types scripts/dev-web.ts",
     "start": "npm run build && electron .",
     "typecheck": "tsc -p tsconfig.main.json --noEmit && tsc -p tsconfig.renderer.json --noEmit",
-    "test": "node --experimental-strip-types --test test/*.test.ts",
-    "test:e2e": "node --experimental-strip-types scripts/e2e.ts"
+    "test:e2e": "node --experimental-strip-types scripts/e2e.ts",
+    "test:smoke": "node --experimental-strip-types scripts/electron-smoke.ts"
   },
   "dependencies": {
     "@codemirror/commands": "^6.7.0",
