@@ -120,8 +120,17 @@ async function callHost(method: string, params: unknown): Promise<unknown> {
   });
 }
 
+/** Иконка окна для Linux и Windows (на macOS её берёт пакет приложения). */
+function windowIcon(): string | undefined {
+  if (process.platform === 'darwin') return undefined;
+  const p = app.isPackaged ? join(process.resourcesPath, 'icon.png') : join(__dirname, '../../build/icon-window.png');
+  return existsSync(p) ? p : undefined;
+}
+
 function createWindow(): void {
+  const icon = windowIcon();
   win = new BrowserWindow({
+    ...(icon ? { icon } : {}),
     width: 1360,
     height: 860,
     minWidth: 960,

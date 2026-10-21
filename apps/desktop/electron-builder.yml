@@ -8,8 +8,7 @@ artifactName: GemmaCode-${version}-${os}-${arch}.${ext}
 directories:
   output: release
   buildResources: build
-# Электрон берём из node_modules: так сборка на этой машине не качает его ещё раз
-electronDist: ../../node_modules/electron/dist
+# Electron builder скачивает сам (кэш ~/.cache/electron); на машине с готовым дистрибутивом: -c.electronDist=../../node_modules/electron/dist
 electronVersion: 45.0.0
 files:
   - dist/main/**
@@ -23,6 +22,8 @@ asarUnpack:
 extraResources:
   - from: resources/licenses
     to: licenses
+  - from: build/icon-window.png
+    to: icon.png
 mac:
   category: public.app-category.developer-tools
   target:
@@ -42,7 +43,11 @@ dmg:
   sign: false
 linux:
   category: Development
-  maintainer: GemmaCode <noreply@gemmacode.invalid>
+  executableName: gemmacode
+  syncDesktopName: true
+  synopsis: Локальный ИИ-агент на Gemma 4
+  description: Локальный кроссплатформенный агент для программирования на Gemma 4. Всё работает на вашей машине, без облака.
+  maintainer: YoruKitsune <noreply@github.com>
   target:
     - target: AppImage
       arch: [x64]

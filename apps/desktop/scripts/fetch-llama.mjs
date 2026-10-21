@@ -76,8 +76,9 @@ console.log(`SHA-256 совпал (${sha256.slice(0, 16)}…)`);
 
 const tmp = mkdtempSync(join(tmpdir(), 'llama-pin-'));
 try {
-  // bsdtar (macOS, Linux, Windows 10+) читает и tar.gz, и zip
-  execFileSync('tar', ['-xf', archive, '-C', tmp], { stdio: 'inherit' });
+  // bsdtar (macOS, Windows 10+) читает и tar.gz, и zip; GNU tar (Linux) zip не читает, там берём unzip
+  if (archive.endsWith('.zip') && process.platform !== 'win32' && process.platform !== 'darwin') execFileSync('unzip', ['-q', '-o', archive, '-d', tmp], { stdio: 'inherit' });
+  else execFileSync('tar', ['-xf', archive, '-C', tmp], { stdio: 'inherit' });
   const top = readdirSync(tmp);
   const root = top.length === 1 && statSync(join(tmp, top[0])).isDirectory() ? join(tmp, top[0]) : tmp;
   rmSync(outDir, { recursive: true, force: true });

@@ -482,6 +482,9 @@ await step('первый запуск: окно предлагает скача�
     await p2.goto(`http://127.0.0.1:${webPort}/?ws=${ws2.port}&project=${encodeURIComponent(project)}`);
     await p2.getByRole('heading', { name: 'Нужна модель' }).waitFor({ timeout: 8000 });
     assert((await p2.getByText(/дальше работает без интернета/).count()) > 0, 'нет пояснения про офлайн');
+    assert((await p2.getByRole('radio', { name: /E4B|12B|E2B/ }).count()) === 3, 'в списке моделей не три записи каталога');
+    assert((await p2.getByText(/не хватит памяти|впритык|подходит/).count()) >= 3, 'у моделей нет подсказки про память');
+    await p2.screenshot({ path: join(out, '11a-model-pick.png') });
     await p2.getByRole('button', { name: /Скачать/ }).click();
     await p2.getByRole('progressbar').or(p2.locator('.progress-bar')).first().waitFor({ timeout: 8000 });
     await p2.screenshot({ path: join(out, '11-model-download.png') });

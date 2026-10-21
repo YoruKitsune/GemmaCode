@@ -23,13 +23,13 @@ export async function boot(): Promise<void> {
   if (auto) await openProject(auto, params.get('project') ? undefined : info.lastSession);
 }
 
-export async function refreshModel(): Promise<void> {
-  const model = await bridge.call('model.status', {}).catch(() => undefined);
+export async function refreshModel(modelId?: string): Promise<void> {
+  const model = await bridge.call('model.status', modelId ? { modelId } : {}).catch(() => undefined);
   if (model) setState({ model });
 }
 
-export async function downloadModel(withMmproj: boolean): Promise<void> {
-  const model = await guard(bridge.call('model.download', { withMmproj }));
+export async function downloadModel(withMmproj: boolean, modelId?: string): Promise<void> {
+  const model = await guard(bridge.call('model.download', { withMmproj, ...(modelId ? { modelId } : {}) }));
   if (model) setState({ model });
 }
 

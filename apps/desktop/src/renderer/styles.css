@@ -422,3 +422,10 @@ details summary { cursor: pointer; color: var(--text-dim); margin: 6px 0; }
 .progress-bar { height: 8px; border-radius: 4px; background: rgba(127, 127, 127, 0.28); overflow: hidden; }
 .progress-bar > span { display: block; height: 100%; background: var(--accent); transition: width 0.25s linear; }
 .error-text { color: var(--err); margin: 0; }
+
+.model-pick { border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.model-opt.fit-no b { color: var(--danger, #e5606a); }
+.model-opt.fit-tight b { color: var(--warn, #d9a441); }
+.model-opt { white-space: normal; line-height: 1.45; align-items: flex-start; }
+.model-opt input { margin-top: 3px; }
+.model-opt .model-note { display: block; }

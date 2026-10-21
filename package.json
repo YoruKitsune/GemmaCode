@@ -18,6 +18,13 @@
     "bench": "node bench/bench.mjs",
     "test:eval": "node --experimental-strip-types --test --test-concurrency=4 eval/*.test.ts",
     "eval": "node --experimental-strip-types eval/run.ts",
-    "gemmacode": "node packages/cli/bin/gemmacode.mjs"
+    "gemmacode": "node packages/cli/bin/gemmacode.mjs",
+    "verify:catalog": "node --experimental-strip-types tools/verify-catalog.ts"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/YoruKitsune/GemmaCode",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/YoruKitsune/GemmaCode.git"
   }
 }

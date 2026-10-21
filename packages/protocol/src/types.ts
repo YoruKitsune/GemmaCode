@@ -48,7 +48,25 @@ export interface ModelProgress {
   attempt: number;
 }
 
+/** Модель каталога: размер, подходит ли по памяти этой машины, скачана ли. */
+export interface ModelOption {
+  id: string;
+  label: string;
+  title: string;
+  note: string;
+  modelBytes: number;
+  mmprojBytes: number;
+  minRamGB: number;
+  /** ok: хватает памяти; tight: впритык, будут тормоза; no: не хватает. */
+  fit: 'ok' | 'tight' | 'no';
+  recommended: boolean;
+  installed: boolean;
+}
+
 export interface ModelStatus {
+  /** Выбранная для загрузки модель каталога. */
+  modelId: string;
+  catalog: ModelOption[];
   title: string;
   repo: string;
   license: string;
@@ -345,9 +363,9 @@ export interface Methods {
   'app.init': { params: Record<string, never>; result: AppInfo };
   'settings.set': { params: Partial<Settings>; result: Settings };
   'models.scan': { params: Record<string, never>; result: FoundModel[] };
-  'model.status': { params: Record<string, never>; result: ModelStatus };
+  'model.status': { params: { modelId?: string }; result: ModelStatus };
   /** Запускает загрузку в фоне (ход виден по событиям `model.progress`); готовые файлы подключаются в настройки сами. */
-  'model.download': { params: { withMmproj: boolean }; result: ModelStatus };
+  'model.download': { params: { withMmproj: boolean; modelId?: string }; result: ModelStatus };
   /** Останавливает загрузку, скачанное остаётся и докачается при следующем запуске. */
   'model.cancel': { params: Record<string, never>; result: ModelStatus };
 

@@ -1,6 +1,6 @@
 {
   "name": "@gemmacode/desktop",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "private": true,
   "description": "Оболочка GemmaCode: Electron, React, TypeScript",
   "main": "dist/main/main.js",
@@ -60,8 +60,14 @@
     "wait-on": "^8.0.0"
   },
   "author": {
-    "name": "GemmaCode",
-    "email": "noreply@gemmacode.invalid"
+    "name": "YoruKitsune",
+    "email": "noreply@github.com"
   },
-  "license": "UNLICENSED"
+  "license": "MIT",
+  "homepage": "https://github.com/YoruKitsune/GemmaCode",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/YoruKitsune/GemmaCode.git"
+  },
+  "desktopName": "gemmacode.desktop"
 }

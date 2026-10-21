@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { cancelModelDownload, downloadModel } from '../actions';
+import { cancelModelDownload, downloadModel, refreshModel } from '../actions';
 import { formatBytes } from '../format';
 import { useStore } from '../store';
 
@@ -11,8 +11,10 @@ function eta(p: { overallReceived: number; overallTotal: number; bytesPerSec: nu
   return `осталось ${Math.floor(s / 3600)} ч ${Math.round((s % 3600) / 60)} мин`;
 }
 
+const FIT_TEXT = { ok: 'подходит', tight: 'впритык, будут тормоза', no: 'не хватит памяти' } as const;
+
 /**
- * Скачивание модели по умолчанию (Gemma 4 E2B). Загрузка идёт в фоне в сервисе агента, её можно остановить и продолжить,
+ * Скачивание модели (по умолчанию Gemma 4 E2B; E4B и 12B выбираются списком, у каждой видно, хватит ли памяти этой машины). Загрузка идёт в фоне в сервисе агента, её можно остановить и продолжить,
  * после обрыва связи она сама продолжается с места обрыва. Скачанное работает офлайн.
  */
 export function ModelSetup({ compact = false }: { compact?: boolean }) {
@@ -30,6 +32,30 @@ export function ModelSetup({ compact = false }: { compact?: boolean }) {
   return (
     <div className={`model-setup${compact ? ' compact' : ''}`}>
       {!compact && <h3>Нужна модель</h3>}
+      {!model.downloading && model.catalog.length > 1 && (
+        <fieldset className="model-pick" aria-label="Модель">
+          {model.catalog.map((o) => (
+            <label key={o.id} className={`check small-text model-opt fit-${o.fit}`}>
+              <input type="radio" name="model-pick" checked={model.modelId === o.id} onChange={() => void refreshModel(o.id)} />
+              <span>
+                <b>{o.label}</b> · {formatBytes(o.modelBytes)} · {FIT_TEXT[o.fit]}
+                {o.recommended ? ' · рекомендуется для вашей памяти' : ''}
+                {o.installed ? ' · скачана' : ''}
+                <span className="muted model-note">{o.note}</span>
+              </span>
+            </label>
+          ))}
+        </fieldset>
+      )}
+      {(() => {
+        const cur = model.catalog.find((o) => o.id === model.modelId);
+        if (!cur || cur.fit === 'ok') return null;
+        return (
+          <p className="small-text error-text" role="alert">
+            {cur.fit === 'no' ? `Этой машине не хватит памяти для ${cur.label} (нужно от ${cur.minRamGB} ГБ). Модель может не запуститься или остановить систему.` : `Памяти впритык для ${cur.label} (комфортно от ${cur.minRamGB} ГБ): возможны тормоза.`}
+          </p>
+        );
+      })()}
       <p className="muted small-text">
         {model.title}: {formatBytes(main.size)}
         {proj ? `, плюс ${formatBytes(proj.size)} для фото и звука` : ''}. Скачивается один раз с Hugging Face ({model.repo}), дальше работает без интернета. Лицензия модели: {model.license}.
@@ -59,7 +85,7 @@ export function ModelSetup({ compact = false }: { compact?: boolean }) {
         ) : allReady ? (
           <span className="small-text muted">Модель скачана.</span>
         ) : (
-          <button className="primary" onClick={() => void downloadModel(withMmproj)}>
+          <button className="primary" onClick={() => void downloadModel(withMmproj, model.modelId)}>
             {model.error ? 'Повторить' : resumable ? 'Продолжить загрузку' : `Скачать (${formatBytes(total)})`}
           </button>
         )}

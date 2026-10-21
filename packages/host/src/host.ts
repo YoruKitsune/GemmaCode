@@ -29,6 +29,7 @@ import {
 } from '@gemmacode/core';
 import type {
   AppInfo,
+  ModelOption,
   ModelProgress,
   ModelStatus,
   ApprovalAnswer,
@@ -58,6 +59,7 @@ import { patchUserConfig, readAppMemory, scanModels, writeAppMemory } from './co
 import { ProjectFiles, toPosix, type Platform } from './files.ts';
 import { collectStats, countDiffLines, StatsStore, type TurnRecord } from './stats.ts';
 import { Terminals } from './terminal.ts';
+import { MODEL_CATALOG, findCatalogEntry, memoryFit, recommendedModelId, totalBytes } from './model-catalog.ts';
 import { DEFAULT_MODEL, DownloadError, ModelDownloader, type ModelSpec } from './model-download.ts';
 
 export interface HostOptions {
@@ -221,6 +223,8 @@ export class AgentHost {
   private readonly handlers: Handlers;
   private modelJob: ModelJob | undefined;
   private modelError: string | undefined;
+  /** Модель каталога, выбранная в окне для загрузки (по умолчанию E2B). */
+  private modelChoice: string | undefined;
 
   constructor(opts: HostOptions = {}) {
     this.opts = opts;
@@ -594,18 +598,42 @@ export class AgentHost {
 
   // ---------- модель по умолчанию ----------
 
-  private downloader(onProgress?: (p: import('./model-download.ts').Progress) => void): ModelDownloader {
+  /** Спецификация выбранной модели. Подмена `modelSource.spec` (тесты, зеркала) имеет приоритет над каталогом. */
+  private specFor(modelId?: string): ModelSpec {
+    if (this.opts.modelSource?.spec) return this.opts.modelSource.spec;
+    return (findCatalogEntry(modelId ?? this.modelChoice ?? DEFAULT_MODEL.id) ?? MODEL_CATALOG[0]!).spec;
+  }
+
+  private downloader(onProgress?: (p: import('./model-download.ts').Progress) => void, spec: ModelSpec = this.specFor()): ModelDownloader {
     return new ModelDownloader({
       dir: join(this.home, '.gemmacode', 'models'),
       ...(this.opts.modelSource?.endpoint ? { endpoint: this.opts.modelSource.endpoint } : {}),
-      spec: this.opts.modelSource?.spec ?? DEFAULT_MODEL,
+      spec,
       ...(onProgress ? { onProgress } : {}),
     });
   }
 
-  private modelStatus(): ModelStatus {
-    const d = this.downloader();
+  private modelStatus(modelId?: string): ModelStatus {
+    if (modelId && !this.modelJob) this.modelChoice = modelId;
+    const spec = this.specFor(modelId);
+    const d = this.downloader(undefined, spec);
+    const mem = Math.round(totalmem() / 2 ** 30);
+    const recommended = recommendedModelId(mem);
+    const catalog = MODEL_CATALOG.map((e): ModelOption => ({
+      id: e.spec.id,
+      label: e.label,
+      title: e.spec.title,
+      note: e.note,
+      modelBytes: totalBytes(e.spec, 'model'),
+      mmprojBytes: totalBytes(e.spec, 'mmproj'),
+      minRamGB: e.minRamGB,
+      fit: memoryFit(e, mem),
+      recommended: e.spec.id === recommended && e.minRamGB > MODEL_CATALOG[0]!.minRamGB,
+      installed: this.downloader(undefined, e.spec).status().find((f) => f.role === 'model')?.state === 'ready',
+    }));
     return {
+      modelId: this.opts.modelSource?.spec ? spec.id : (findCatalogEntry(spec.id) ?? MODEL_CATALOG[0]!).spec.id,
+      catalog,
       title: d.spec.title,
       repo: d.spec.repo,
       license: d.spec.license,
@@ -617,20 +645,22 @@ export class AgentHost {
     };
   }
 
-  private startModelDownload(withMmproj: boolean): ModelStatus {
+  private startModelDownload(withMmproj: boolean, modelId?: string): ModelStatus {
     if (this.modelJob) return this.modelStatus();
+    if (modelId) this.modelChoice = modelId;
     this.modelError = undefined;
+    const spec = this.specFor();
     const roles: ('model' | 'mmproj')[] = withMmproj ? ['model', 'mmproj'] : ['model'];
     const job: ModelJob = { ctl: new AbortController() };
     this.modelJob = job;
-    const files = this.downloader().spec.files.filter((f) => roles.includes(f.role));
+    const files = spec.files.filter((f) => roles.includes(f.role));
     const overallTotal = files.reduce((n, f) => n + f.size, 0);
     const d = this.downloader((p) => {
       const before = files.slice(0, files.findIndex((f) => f.name === p.file)).reduce((n, f) => n + f.size, 0);
       const progress: ModelProgress = { ...p, overallReceived: before + p.received, overallTotal };
       job.progress = progress;
       this.emit('model.progress', progress);
-    });
+    }, spec);
     void d.download(roles, job.ctl.signal).then(
       async (r) => {
         this.modelJob = undefined;
@@ -675,8 +705,8 @@ export class AgentHost {
         return this.appInfo().settings;
       },
       'models.scan': () => scanModels(this.home),
-      'model.status': () => this.modelStatus(),
-      'model.download': ({ withMmproj }) => this.startModelDownload(withMmproj),
+      'model.status': ({ modelId }) => this.modelStatus(modelId),
+      'model.download': ({ withMmproj, modelId }) => this.startModelDownload(withMmproj, modelId),
       'model.cancel': () => {
         this.modelJob?.ctl.abort();
         return this.modelStatus();
