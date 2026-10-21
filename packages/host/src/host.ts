@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, statSync, watch, writeFileSync, type FSWatcher } from 'node:fs';
 import { homedir, totalmem } from 'node:os';
 import { basename, join, resolve } from 'node:path';
@@ -52,6 +53,7 @@ import { applyTurnEvent, feedFromMessages } from '@gemmacode/protocol';
 import { attachmentFromProjectFile, buildUserContent, saveAttachment } from './attachments.ts';
 import { patchUserConfig, readAppMemory, scanModels, writeAppMemory } from './config-store.ts';
 import { ProjectFiles, toPosix, type Platform } from './files.ts';
+import { collectStats, countDiffLines, StatsStore, type TurnRecord } from './stats.ts';
 import { Terminals } from './terminal.ts';
 
 export interface HostOptions {
@@ -138,6 +140,7 @@ interface ProjectParts {
   sandbox: ReturnType<typeof detectSandbox>;
   browser: BrowserController | null;
   browserReason: string | undefined;
+  stats: StatsStore;
 }
 
 class Project {
@@ -156,6 +159,7 @@ class Project {
   readonly sandbox: ReturnType<typeof detectSandbox>;
   readonly browser: BrowserController | null;
   readonly browserReason: string | undefined;
+  readonly stats: StatsStore;
 
   constructor(parts: ProjectParts) {
     this.cwd = parts.cwd;
@@ -169,6 +173,7 @@ class Project {
     this.sandbox = parts.sandbox;
     this.browser = parts.browser;
     this.browserReason = parts.browserReason;
+    this.stats = parts.stats;
   }
 }
 
@@ -318,7 +323,7 @@ export class AgentHost {
       else if (e.type === 'frame') this.emit('browser.frame', { tab: e.tab, data: e.data, width: e.width, height: e.height });
       else this.emit('browser.blocked', { url: e.url, reason: e.reason });
     });
-    const p = new Project({ cwd, config: loaded.config, backend: this.makeBackend(loaded.config), files: new ProjectFiles(cwd, this.opts.platform), skills, mcp, store: new SessionStore(cwd), warnings, sandbox, browser, browserReason });
+    const p = new Project({ cwd, config: loaded.config, backend: this.makeBackend(loaded.config), files: new ProjectFiles(cwd, this.opts.platform), skills, mcp, store: new SessionStore(cwd), warnings, sandbox, browser, browserReason, stats: new StatsStore(cwd) });
     this.project = p;
     excludeFromGit(cwd);
     if (this.opts.watchFiles) this.watchProject(p);
@@ -361,6 +366,7 @@ export class AgentHost {
     this.activeTurn = undefined;
     await p.mcp.close().catch(() => undefined);
     await p.browser?.dispose().catch(() => undefined);
+    p.stats.close();
     await p.backend?.stop().catch(() => undefined);
     this.emit('backend.status', { status: 'stopped' });
   }
@@ -491,11 +497,15 @@ export class AgentHost {
       ui,
       ...(live.verify ? { verify: live.verify, maxIterations: p.config.maxIterations } : {}),
     };
+    const rec = newTurnRecord(live.id, p.status === 'ready' ? (p.config.server.modelFile ? basename(p.config.server.modelFile) : p.config.server.url ?? p.config.server.hf ?? null) : null);
+    let started = 0;
     try {
       await this.ensureBackend(p);
       if (live.abort?.signal.aborted) throw new Error('Остановлено до запуска модели');
+      started = Date.now();
       for await (const e of runTask(live.agent, content, opts, live.abort?.signal)) {
         const event = e as TurnEvent;
+        collectTurnEvent(rec, event, started);
         live.feed = applyTurnEvent(live.feed, event);
         if (e.type === 'tool_result' && e.touched.length) {
           const rel = e.touched.map((a) => toPosix(p.files.rel(a))).filter((r) => !r.startsWith('..'));
@@ -509,6 +519,11 @@ export class AgentHost {
       live.feed = applyTurnEvent(live.feed, event);
       this.emit('turn.event', { sessionId: live.id, event });
     } finally {
+      if (started) {
+        rec.durationMs = Date.now() - started;
+        rec.rssMB = rssMB(p.backend?.pid);
+        if (rec.steps > 0) p.stats.recordTurn(rec);
+      }
       live.running = false;
       live.abort = undefined;
       for (const [id, pend] of live.pending) {
@@ -674,6 +689,17 @@ export class AgentHost {
       },
       'fs.search': ({ query, mode }) => files().search(query, mode),
       'git.status': () => files().gitStatus(),
+      'stats.get': () => {
+        const p = this.need();
+        return collectStats(p.cwd, p.stats);
+      },
+      'stats.export': ({ format }) => {
+        const p = this.need();
+        const day = new Date().toISOString().slice(0, 10);
+        if (format === 'csv') return { name: `gemmacode-stats-${day}.csv`, mime: 'text/csv', text: p.stats.turnsCsv() };
+        return collectStats(p.cwd, p.stats).then((s) => ({ name: `gemmacode-stats-${day}.json`, mime: 'application/json', text: JSON.stringify(s, null, 2) }));
+      },
+      'fs.previewHtml': ({ path }) => files().previewHtml(path),
 
       'backend.start': async () => {
         await this.ensureBackend(this.need());
@@ -768,6 +794,60 @@ export class AgentHost {
 
   async shutdown(): Promise<void> {
     await this.closeProject();
+  }
+}
+
+function newTurnRecord(session: string, model: string | null): TurnRecord & { _tokTime: number; _firstSeen: boolean } {
+  return { ts: Date.now(), session, model, steps: 0, toolCalls: 0, toolErrors: 0, invalidCalls: 0, promptTokens: 0, generatedTokens: 0, genTps: 0, ttftMs: 0, durationMs: 0, added: 0, removed: 0, outcome: 'completed', rssMB: null, tools: {}, _tokTime: 0, _firstSeen: false };
+}
+
+/** Складывает события хода в запись статистики: токены, скорость, вызовы инструментов, строки «+» и «−». */
+function collectTurnEvent(rec: ReturnType<typeof newTurnRecord>, e: TurnEvent, started: number): void {
+  if (!rec._firstSeen && (e.type === 'text' || e.type === 'reasoning' || e.type === 'tool_call')) {
+    rec._firstSeen = true;
+    rec.ttftMs = Date.now() - started;
+  }
+  switch (e.type) {
+    case 'tool_call':
+      rec.toolCalls++;
+      (rec.tools[e.name] ??= { calls: 0, errors: 0 }).calls++;
+      break;
+    case 'tool_result':
+      if (e.isError) {
+        rec.toolErrors++;
+        (rec.tools[e.name] ??= { calls: 0, errors: 0 }).errors++;
+      }
+      if (e.diff) {
+        const d = countDiffLines(e.diff);
+        rec.added += d.added;
+        rec.removed += d.removed;
+      }
+      break;
+    case 'invalid_call':
+      rec.invalidCalls++;
+      break;
+    case 'timings':
+      rec.promptTokens += e.timings.promptTokens;
+      rec.generatedTokens += e.timings.predictedTokens;
+      if (e.timings.predictedTokensPerSecond > 0 && e.timings.predictedTokens >= 8) rec._tokTime += e.timings.predictedTokens / e.timings.predictedTokensPerSecond;
+      rec.genTps = rec._tokTime > 0 ? rec.generatedTokens / rec._tokTime : 0;
+      break;
+    case 'done':
+      rec.steps = e.steps;
+      rec.outcome = e.reason;
+      break;
+  }
+}
+
+/** Память процесса модели по данным ОС (RSS), МБ. На Windows и без pid не меряем. */
+function rssMB(pid: number | undefined): number | null {
+  if (!pid || process.platform === 'win32') return null;
+  try {
+    const out = execFileSync('ps', ['-o', 'rss=', '-p', String(pid)], { timeout: 2000 }).toString().trim();
+    const kb = Number(out);
+    return Number.isFinite(kb) && kb > 0 ? Math.round(kb / 1024) : null;
+  } catch {
+    return null;
   }
 }
 

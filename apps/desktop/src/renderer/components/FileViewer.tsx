@@ -6,6 +6,7 @@ import { createEditor, type EditorHandle } from '../editor';
 import { formatBytes } from '../format';
 import { toast, useStore } from '../store';
 import { IconFile } from './icons';
+import { CsvPreview, HtmlPreview, JsonPreview, MarkdownPreview, PdfPreview, previewKindOf } from './Preview';
 
 /** Просмотр и правка файла проекта: текст в CodeMirror, картинки и звук встроенными элементами. */
 export function FileViewer({ path, onDirty }: { path: string; onDirty(dirty: boolean): void }) {
@@ -19,6 +20,9 @@ export function FileViewer({ path, onDirty }: { path: string; onDirty(dirty: boo
   const fsVersion = useStore((s) => s.fsVersion);
   const fsPaths = useStore((s) => s.fsPaths);
   const mtime = useRef(0);
+  const previewKind = previewKindOf(path);
+  // PDF и таблицы открываются сразу в просмотре, остальное — в редакторе
+  const [view, setView] = useState<'code' | 'preview'>(previewKind === 'pdf' || previewKind === 'csv' ? 'preview' : 'code');
 
   // onDirty приходит новой функцией на каждый рендер родителя; через ref колбэки остаются стабильными и редактор не пересоздаётся
   const onDirtyRef = useRef(onDirty);
@@ -69,14 +73,14 @@ export function FileViewer({ path, onDirty }: { path: string; onDirty(dirty: boo
   saveRef.current = save;
 
   useEffect(() => {
-    if (file?.kind !== 'text' || !host.current) return;
+    if (file?.kind !== 'text' || !host.current || (previewKind && view === 'preview')) return;
     const ed = createEditor(host.current, { doc: file.text, path, readOnly: Boolean(file.truncated), onChange: () => markDirty(true), onSave: () => void saveRef.current() });
     editor.current = ed;
     return () => {
       ed.destroy();
       editor.current = null;
     };
-  }, [file, path, markDirty]);
+  }, [file, path, markDirty, view, previewKind]);
 
   if (error) return <div className="viewer-msg">{error}</div>;
   if (!file) return <div className="viewer-msg muted">Загрузка…</div>;
@@ -87,6 +91,12 @@ export function FileViewer({ path, onDirty }: { path: string; onDirty(dirty: boo
         <span className="viewer-path" title={path}>{path}</span>
         <span className="muted">{formatBytes(file.size)}</span>
         <span className="spacer" />
+        {previewKind && previewKind !== 'pdf' && (
+          <div className="seg" role="group" aria-label="Вид файла">
+            <button className={`small${view === 'code' ? ' on' : ''}`} aria-pressed={view === 'code'} onClick={() => setView('code')}>Код</button>
+            <button className={`small${view === 'preview' ? ' on' : ''}`} aria-pressed={view === 'preview'} onClick={() => setView('preview')}>Просмотр</button>
+          </div>
+        )}
         <button className="ghost small" onClick={() => composerBus.dispatchEvent(new CustomEvent('attach', { detail: path }))} title="Прикрепить файл к сообщению">
           В чат
         </button>
@@ -103,7 +113,12 @@ export function FileViewer({ path, onDirty }: { path: string; onDirty(dirty: boo
           <button className="ghost small" onClick={() => setStale(false)}>Оставить мои</button>
         </div>
       )}
-      {file.kind === 'text' && (
+      {file.kind === 'text' && view === 'preview' && previewKind === 'markdown' && <MarkdownPreview text={file.text} />}
+      {file.kind === 'text' && view === 'preview' && previewKind === 'html' && <HtmlPreview path={path} />}
+      {file.kind === 'text' && view === 'preview' && previewKind === 'csv' && <CsvPreview text={file.text} path={path} />}
+      {file.kind === 'text' && view === 'preview' && previewKind === 'json' && <JsonPreview text={file.text} />}
+      {file.kind === 'pdf' && <PdfPreview dataUrl={file.dataUrl} />}
+      {file.kind === 'text' && (view === 'code' || !previewKind) && (
         <>
           {file.truncated && <div className="banner">Файл больше 1 МБ: показано начало, редактирование выключено.</div>}
           <div className="editor" ref={host} />

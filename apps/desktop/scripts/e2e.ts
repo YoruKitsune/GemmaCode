@@ -97,6 +97,28 @@ function chromePath(): string | undefined {
   return undefined;
 }
 
+/** Минимальный PDF на одну страницу с текстом: хватает, чтобы pdf.js нарисовал страницу. */
+function tinyPdf(text: string): Buffer {
+  const stream = `BT /F1 24 Tf 20 60 Td (${text}) Tj ET`;
+  const objs = [
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 100] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>',
+    `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`,
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+  ];
+  let out = '%PDF-1.4\n';
+  const offs: number[] = [];
+  objs.forEach((o, i) => {
+    offs.push(out.length);
+    out += `${i + 1} 0 obj\n${o}\nendobj\n`;
+  });
+  const xref = out.length;
+  out += `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n` + offs.map((o) => `${String(o).padStart(10, '0')} 00000 n \n`).join('');
+  out += `trailer\n<< /Size ${objs.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+  return Buffer.from(out, 'latin1');
+}
+
 const results: { name: string; ok: boolean; error?: string }[] = [];
 async function step(name: string, fn: () => Promise<void>): Promise<void> {
   try {
@@ -127,6 +149,13 @@ writeFileSync(
 <button onclick="document.title='Greeted'">Greet</button><h1>Greeting</h1><p id="out">Hello, wolrd!</p>
 <script>console.error('typo in greeting')</script>`,
 );
+// файлы для предпросмотра
+writeFileSync(join(project, 'notes.md'), '# Заголовок заметки\n\n- пункт **один**\n- пункт два\n');
+writeFileSync(join(project, 'table.csv'), 'имя,число\nальфа,1\nбета,2\n');
+writeFileSync(join(project, 'data.json'), JSON.stringify({ name: 'demo', items: [1, 2, 3], nested: { ok: true } }));
+writeFileSync(join(project, 'page.html'), '<link rel="stylesheet" href="page.css"><h1 id="t">Страница</h1><script>document.getElementById("t").textContent += " (скрипт)"</script>');
+writeFileSync(join(project, 'page.css'), 'h1{color:rgb(200,0,0)}');
+writeFileSync(join(project, 'doc.pdf'), tinyPdf('Hello PDF'));
 const g = (...a: string[]) => execFileSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', ...a], { cwd: project, stdio: 'pipe' });
 g('init', '-q', '-b', 'main');
 g('add', '.');
@@ -160,7 +189,7 @@ const ws = await serveWebSocket(host, 0);
 
 const dist = join(root, 'dist', 'renderer');
 if (!existsSync(join(dist, 'index.html')) || process.env.E2E_REBUILD !== '0') execFileSync('npx', ['vite', 'build'], { cwd: root, stdio: 'ignore' });
-const MIME: Record<string, string> = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css' };
+const MIME: Record<string, string> = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.css': 'text/css' };
 const web = createServer((req, res) => {
   const url = new URL(req.url ?? '/', 'http://x');
   const file = join(dist, url.pathname === '/' ? 'index.html' : url.pathname);
@@ -287,7 +316,7 @@ await step('файл открывается во вкладке, правитс�
   await page.keyboard.press('Control+End');
   await page.keyboard.type('Строка из редактора\n');
   await page.getByRole('button', { name: 'Сохранить' }).click();
-  await page.waitForFunction(() => document.querySelector('.viewer-bar button.small:not(.ghost)')?.hasAttribute('disabled'));
+  await page.waitForFunction(() => [...document.querySelectorAll('.pane:not([hidden]) .viewer-bar button')].find((b) => b.textContent === 'Сохранить')?.hasAttribute('disabled'));
   assert(readFileSync(join(project, 'README.md'), 'utf8').includes('Строка из редактора'), 'правка не сохранена');
   await shot('06-editor');
 });
@@ -351,6 +380,56 @@ await step('агент в браузере: открыл страницу, пр�
   assert(toolText(3).includes('Hello, world!'), 'после перезагрузки нет исправленного текста');
   await page.locator('.tool-card', { hasText: 'browser' }).first().waitFor({ timeout: 4000 }).catch(() => undefined);
   await shot('13-browser-agent');
+});
+
+await step('предпросмотр: markdown, CSV, JSON, HTML во фрейме и PDF', async () => {
+  await page.getByRole('tab', { name: /Файлы/ }).click();
+  const open = async (name: string) => {
+    await page.getByRole('tab', { name: /Файлы/ }).click();
+    await page.locator('.tree .row', { hasText: name }).first().click();
+    await page.locator('.pane:not([hidden]) .viewer-bar').waitFor({ timeout: 8000 });
+    const view = page.locator('.pane:not([hidden]) .seg button', { hasText: 'Просмотр' });
+    if (await view.count()) await view.click();
+  };
+  await open('notes.md');
+  await page.locator('.preview-md h1', { hasText: 'Заголовок заметки' }).waitFor({ timeout: 8000 });
+  assert((await page.locator('.preview-md li').count()) === 2, 'markdown: нет списка');
+  await open('table.csv');
+  await page.locator('table.csv td', { hasText: 'бета' }).waitFor({ timeout: 8000 });
+  await open('data.json');
+  await page.locator('.json-tree', { hasText: 'nested' }).waitFor({ timeout: 8000 });
+  await open('page.html');
+  const frame = page.frameLocator('iframe.preview-frame');
+  await frame.locator('h1', { hasText: 'Страница' }).waitFor({ timeout: 8000 });
+  const color = await frame.locator('h1').evaluate((el) => getComputedStyle(el).color);
+  assert(color === 'rgb(200, 0, 0)', `стиль из page.css не подтянулся: ${color}`);
+  assert(!(await frame.locator('h1').textContent())?.includes('скрипт'), 'скрипт из предпросмотра выполнился');
+  await shot('14-preview-html');
+  await open('doc.pdf');
+  await page.locator('.pdf-pages canvas').first().waitFor({ timeout: 15000 });
+  const painted = await page.locator('.pdf-pages canvas').first().evaluate((c: HTMLCanvasElement) => {
+    const d = c.getContext('2d')!.getImageData(0, 0, c.width, c.height).data;
+    for (let i = 0; i < d.length; i += 4) if (d[i]! < 128) return true;
+    return false;
+  });
+  assert(painted, 'PDF нарисован пустым');
+  await shot('15-preview-pdf');
+});
+
+await step('статистика: код, ходы агента, скорость, экспорт', async () => {
+  await page.getByRole('tab', { name: /Статистика/ }).click();
+  await page.locator('[data-testid="stats"]').waitFor({ timeout: 8000 });
+  await page.locator('.lang-list li', { hasText: 'JavaScript' }).waitFor();
+  const cards = await page.locator('.stat-card').allTextContents();
+  const turns = cards.find((c) => c.startsWith('Ходов'));
+  assert(turns && Number(turns.replace(/\D/g, '')) >= 4, `ходов в статистике: ${turns}`);
+  assert(await page.locator('svg.chart').count() >= 2, 'нет графиков');
+  await page.getByRole('button', { name: 'Таблицей' }).click();
+  await page.locator('.stats-table', { hasText: 'edit_file' }).waitFor();
+  await page.getByRole('button', { name: 'Графики' }).click();
+  const [dl] = await Promise.all([page.waitForEvent('download'), page.locator('[data-testid="stats"]').getByRole('button', { name: 'CSV' }).click()]);
+  assert(/\.csv$/.test(dl.suggestedFilename()), `имя выгрузки: ${dl.suggestedFilename()}`);
+  await shot('16-stats');
 });
 
 await step('настройки: модель, контекст, права', async () => {

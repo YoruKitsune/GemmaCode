@@ -21,6 +21,10 @@ export class LlamaServerBackend implements InferenceBackend {
 
   private readonly config: ServerConfig;
 
+  get pid(): number | undefined {
+    return this.proc?.pid;
+  }
+
   constructor(config: ServerConfig) {
     this.config = config;
   }

@@ -4,11 +4,12 @@ import { baseName } from '../format';
 import { setState, useStore, type RightTab } from '../store';
 import { ChangesTab } from './ChangesTab';
 import { FilesTab } from './FilesTab';
-import { IconClose, IconDiff, IconFolder, IconGlobe, IconTerminal } from './icons';
+import { IconClose, IconDiff, IconFolder, IconChart, IconGlobe, IconTerminal } from './icons';
 
 // редактор и терминал тяжёлые (CodeMirror, xterm): грузим при первом открытии, а не при старте окна
 const FileViewer = lazy(() => import('./FileViewer').then((m) => ({ default: m.FileViewer })));
 const TerminalTab = lazy(() => import('./TerminalTab').then((m) => ({ default: m.TerminalTab })));
+const StatsTab = lazy(() => import('./StatsTab').then((m) => ({ default: m.StatsTab })));
 const BrowserTab = lazy(() => import('./BrowserTab').then((m) => ({ default: m.BrowserTab })));
 
 export function RightPanel() {
@@ -22,6 +23,8 @@ export function RightPanel() {
   if (tab === 'terminal') termSeen.current = true;
   const browserSeen = useRef(false);
   if (tab === 'browser') browserSeen.current = true;
+  const statsSeen = useRef(false);
+  if (tab === 'stats') statsSeen.current = true;
 
   const onResizeStart = useCallback((e: React.PointerEvent) => {
     dragging.current = true;
@@ -48,6 +51,7 @@ export function RightPanel() {
         {tabBtn('changes', 'Изменения', <IconDiff size={14} />, changeCount)}
         {tabBtn('terminal', 'Терминал', <IconTerminal size={14} />)}
         {tabBtn('browser', 'Браузер', <IconGlobe size={14} />)}
+        {tabBtn('stats', 'Статистика', <IconChart size={14} />)}
         {openFiles.map((p) => (
           <span key={p} className={`tab file-tab${tab === `file:${p}` ? ' active' : ''}`} onClick={() => showTab(`file:${p}`)} title={p} role="tab">
             {baseName(p)}
@@ -76,6 +80,13 @@ export function RightPanel() {
           <div className="pane" hidden={tab !== 'browser'}>
             <Suspense fallback={<div className="pad muted">Загрузка…</div>}>
               <BrowserTab visible={tab === 'browser'} />
+            </Suspense>
+          </div>
+        )}
+        {(tab === 'stats' || statsSeen.current) && (
+          <div className="pane" hidden={tab !== 'stats'}>
+            <Suspense fallback={<div className="pad muted">Загрузка…</div>}>
+              <StatsTab visible={tab === 'stats'} />
             </Suspense>
           </div>
         )}

@@ -60,6 +60,8 @@ export type BackendStatus = 'stopped' | 'starting' | 'ready' | 'error';
 
 export interface InferenceBackend {
   readonly status: BackendStatus;
+  /** Номер процесса движка, если он наш: по нему сервис меряет память модели. */
+  readonly pid?: number | undefined;
   start(): Promise<void>;
   stop(): Promise<void>;
   chat(request: ChatRequest, signal?: AbortSignal): AsyncIterable<ChatChunk>;

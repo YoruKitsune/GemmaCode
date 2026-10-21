@@ -424,3 +424,53 @@ test('окно браузера: attach даёт кадры, адрес поль
   await host.shutdown();
   server.close();
 });
+
+test('статистика: ход агента попадает в базу, считаются код, правки и экспорт', async () => {
+  const dir = tempProject({ 'a.js': 'one\ntwo\n', 'b.py': 'x = 1\n' });
+  const { host, events } = setup([{ calls: [{ name: 'edit_file', args: { path: 'a.js', old_string: 'two', new_string: '2\nthree' } }] }, { text: 'Готово' }]);
+  await host.call('project.open', { path: dir });
+  const s = await host.call('session.create', {});
+  await host.call('session.options', { id: s.id, mode: 'auto-edit' });
+  await host.call('chat.send', { sessionId: s.id, text: 'поправь', attachments: [] });
+  await until(turnDone(events));
+  const st = await host.call('stats.get', {});
+  assert.equal(st.dbError, undefined);
+  assert.equal(st.code.files >= 2, true);
+  assert.deepEqual(st.code.languages.map((l) => l.name).sort(), ['JavaScript', 'Python']);
+  assert.equal(st.agent.turns, 1);
+  assert.equal(st.agent.toolCalls, 1);
+  assert.equal(st.agent.toolSuccess, 1);
+  assert.equal(st.agent.added, 2);
+  assert.equal(st.agent.removed, 1);
+  assert.equal(st.agent.byDay.reduce((n, d) => n + d.turns, 0), 1);
+  assert.equal(st.agent.tools[0]!.name, 'edit_file');
+  const json = await host.call('stats.export', { format: 'json' });
+  assert.equal(JSON.parse(json.text).agent.turns, 1);
+  const csv = await host.call('stats.export', { format: 'csv' });
+  assert.match(csv.name, /\.csv$/);
+  assert.match(csv.text, /^[^\n]*,/);
+  await host.shutdown();
+});
+
+test('предпросмотр: HTML подтягивает локальные стили и скрипты, PDF читается как dataUrl', async () => {
+  const dir = tempProject({
+    'site/index.html': '<link rel="stylesheet" href="style.css"><script src="app.js"></script><img src="logo.svg"><img src="missing.png"><h1>Hi</h1>',
+    'site/style.css': 'h1{color:red}',
+    'site/app.js': 'document.title="x"',
+    'site/logo.svg': '<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1"/>',
+  });
+  writeFileSync(join(dir, 'doc.pdf'), '%PDF-1.4\n%%EOF\n');
+  const { host } = setup([]);
+  await host.call('project.open', { path: dir });
+  const r = await host.call('fs.previewHtml', { path: 'site/index.html' });
+  assert.match(r.html, /<style[^>]*>h1\{color:red\}/);
+  assert.doesNotMatch(r.html, /<script|document\.title/);
+  assert.match(r.html, /data:image\/svg\+xml/);
+  assert.deepEqual(r.missing, ['missing.png']);
+  assert.equal(r.inlined.length, 2);
+  const pdf = await host.call('fs.read', { path: 'doc.pdf' });
+  assert.equal(pdf.kind, 'pdf');
+  assert.match((pdf as any).dataUrl, /^data:application\/pdf;base64,/);
+  await assert.rejects(host.call('fs.previewHtml', { path: '../outside.html' }));
+  await host.shutdown();
+});

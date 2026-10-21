@@ -178,6 +178,7 @@ export type FileContent =
   | { kind: 'image'; path: string; dataUrl: string; size: number; mtime: number }
   | { kind: 'audio'; path: string; dataUrl: string; size: number; mtime: number }
   | { kind: 'video'; path: string; dataUrl: string; size: number; mtime: number }
+  | { kind: 'pdf'; path: string; dataUrl: string; size: number; mtime: number }
   | { kind: 'binary'; path: string; size: number; mtime: number };
 
 export interface SearchHit {
@@ -209,6 +210,60 @@ export interface CommandInfo {
   name: string;
   description: string;
   kind: 'command' | 'skill';
+}
+
+// ---------- статистика ----------
+
+export interface LanguageStat {
+  name: string;
+  files: number;
+  lines: number;
+}
+
+export interface DayStat {
+  /** YYYY-MM-DD */
+  day: string;
+  added: number;
+  removed: number;
+  turns: number;
+}
+
+export interface TurnStat {
+  ts: number;
+  genTps: number;
+  ttftMs: number;
+  generatedTokens: number;
+  promptTokens: number;
+  toolCalls: number;
+  toolErrors: number;
+}
+
+export interface ProjectStats {
+  /** SQLite недоступен (старый Node) или файл не открылся: показываем только то, что считается без базы. */
+  dbError?: string;
+  code: { files: number; lines: number; bytes: number; languages: LanguageStat[]; truncated: boolean };
+  git: { isRepo: boolean; commits30: number; added30: number; removed30: number; uncommittedAdded: number; uncommittedRemoved: number };
+  agent: {
+    turns: number;
+    promptTokens: number;
+    generatedTokens: number;
+    /** Средняя скорость генерации по ходам, ток/с (взвешена по токенам). */
+    avgGenTps: number;
+    avgTtftMs: number;
+    toolCalls: number;
+    toolErrors: number;
+    invalidCalls: number;
+    /** Доля вызовов инструментов без ошибок, 0..1. */
+    toolSuccess: number;
+    added: number;
+    removed: number;
+    byDay: DayStat[];
+    recent: TurnStat[];
+    tools: { name: string; calls: number; errors: number }[];
+    /** Память процесса модели по последнему замеру, МБ. */
+    modelRssMB: number | null;
+    modelName: string | null;
+  };
 }
 
 // ---------- браузер ----------
@@ -274,6 +329,10 @@ export interface Methods {
   'fs.trash': { params: { path: string }; result: null };
   'fs.search': { params: { query: string; mode: 'name' | 'content' }; result: SearchHit[] };
   'git.status': { params: Record<string, never>; result: GitStatus | null };
+  'stats.get': { params: Record<string, never>; result: ProjectStats };
+  'stats.export': { params: { format: 'csv' | 'json' }; result: { name: string; mime: string; text: string } };
+  /** HTML-файл проекта со вставленными локальными стилями, скриптами и картинками: для предпросмотра в изолированном iframe. */
+  'fs.previewHtml': { params: { path: string }; result: { html: string; inlined: string[]; missing: string[] } };
 
   'backend.start': { params: Record<string, never>; result: null };
   'backend.stop': { params: Record<string, never>; result: null };

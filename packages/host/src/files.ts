@@ -83,6 +83,10 @@ export class ProjectFiles {
     const st = statSync(abs);
     if (st.isDirectory()) throw new Error(`${rel} — каталог`);
     const base = { path: toPosix(rel), size: st.size, mtime: st.mtimeMs };
+    if (extOf(abs) === 'pdf') {
+      if (st.size > MAX_MEDIA_BYTES) return { kind: 'binary', ...base };
+      return { kind: 'pdf', ...base, dataUrl: `data:application/pdf;base64,${readFileSync(abs).toString('base64')}` };
+    }
     const media = mediaKind(abs);
     if (media) {
       if (st.size > MAX_MEDIA_BYTES) return { kind: 'binary', ...base };
@@ -160,6 +164,55 @@ export class ProjectFiles {
       }
     }
     return hits;
+  }
+
+  /**
+   * HTML для предпросмотра: локальные стили, скрипты и картинки подставляются в сам файл, потому что iframe с srcdoc
+   * не умеет ходить за файлами проекта. Подстановка поверхностная (теги link, script, img, без @import и url() в CSS):
+   * для точной картины есть встроенный браузер.
+   */
+  previewHtml(rel: string): { html: string; inlined: string[]; missing: string[] } {
+    const abs = this.abs(rel);
+    const dir = dirname(abs);
+    let html = readFileSync(abs, 'utf8');
+    const inlined: string[] = [];
+    const missing: string[] = [];
+    const local = (ref: string): string | null => {
+      if (!ref || /^(?:[a-z][a-z0-9+.-]*:|\/\/|#|data:)/i.test(ref)) return null;
+      try {
+        const p = this.abs(this.rel(resolve(dir, decodeURIComponent(ref.split(/[?#]/)[0]!))));
+        return p;
+      } catch {
+        return null;
+      }
+    };
+    const read = (ref: string, limit: number): Buffer | null => {
+      const p = local(ref);
+      if (!p) return null;
+      try {
+        if (statSync(p).size > limit) return null;
+        const b = readFileSync(p);
+        inlined.push(this.rel(p));
+        return b;
+      } catch {
+        missing.push(ref);
+        return null;
+      }
+    };
+    html = html.replace(/<link\b([^>]*?)>/gi, (tag, attrs: string) => {
+      if (!/rel\s*=\s*["']?stylesheet/i.test(attrs)) return tag;
+      const href = /href\s*=\s*["']([^"']+)["']/i.exec(attrs)?.[1];
+      const b = href ? read(href, 500_000) : null;
+      return b ? `<style>${b.toString('utf8').replace(/<\/style/gi, '<\\/style')}</style>` : tag;
+    });
+    // предпросмотр статичный: скрипты не выполняются (изоляция и CSP окна), поэтому их не подставляем вовсе
+    html = html.replace(/<script\b[\s\S]*?<\/script\s*>/gi, '');
+    html = html.replace(/<img\b([^>]*?)\bsrc\s*=\s*["']([^"']+)["']([^>]*)>/gi, (tag, a: string, src: string, b: string) => {
+      const buf = read(src, 2_000_000);
+      const mime = IMAGE.get(extOf(src.split(/[?#]/)[0]!));
+      return buf && mime ? `<img${a}src="data:${mime};base64,${buf.toString('base64')}"${b}>` : tag;
+    });
+    return { html, inlined, missing };
   }
 
   gitStatus(): Promise<GitStatus | null> {

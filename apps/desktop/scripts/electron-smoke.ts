@@ -81,6 +81,16 @@ try {
   check('diff показан в ленте', true);
   await page.screenshot({ path: join(out, '11-electron.png') });
 
+  // статистика: node:sqlite в Node самого Electron
+  await page.getByRole('tab', { name: /Статистика/ }).click();
+  let statsOk = false;
+  try {
+    await page.locator('[data-testid="stats"] .stat-card', { hasText: 'Ходов' }).waitFor({ timeout: 8000 });
+    statsOk = !(await page.locator('.stats-note').count()) && /^Ходов\s*[1-9]/.test((await page.locator('.stat-card', { hasText: 'Ходов' }).first().textContent()) ?? '');
+  } catch {}
+  if (!statsOk) console.log('STATS', await page.locator('[data-testid="stats"]').innerText().catch((e) => String(e)));
+  check('статистика: база в Node Electron, ход записан', statsOk);
+
   // встроенный браузер: страницы создаёт главный процесс (скрытое окно с отдельным профилем), управляет ими сервис по CDP
   await page.getByRole('tab', { name: /Браузер/ }).click();
   let brow = false;
