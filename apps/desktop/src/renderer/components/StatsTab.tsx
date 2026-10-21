@@ -169,6 +169,8 @@ export function StatsTab({ visible }: { visible: boolean }) {
         <Card label="Токенов сгенерировано" value={fmt(a.generatedTokens)} hint={`на входе ${fmt(a.promptTokens)}`} />
         <Card label="Скорость, ток/с" value={a.turns ? a.avgGenTps.toFixed(1) : '—'} hint={`цель — ${TARGET_TPS}`} />
         <Card label="До первого токена" value={a.turns ? `${(a.avgTtftMs / 1000).toFixed(1)} с` : '—'} />
+        <Card label="Кэш префикса" value={a.cachedTokens + a.promptTokens ? `${Math.round(a.cacheHitRate * 100)}%` : '—'} hint={`из кэша ${fmt(a.cachedTokens)}, пересчитано ${fmt(a.promptTokens)}`} />
+        <Card label="Ускорение" value={a.speculative === 'none' ? 'выключено' : a.speculative === 'external' ? 'чужой сервер' : a.speculative} hint={a.draftTokens ? `принято ${Math.round(a.acceptRate * 100)}% из ${fmt(a.draftTokens)} токенов черновика` : 'черновиков пока не было'} />
         <Card label="Инструменты без ошибок" value={a.toolCalls ? `${Math.round(a.toolSuccess * 100)}%` : '—'} hint={`${fmt(a.toolCalls)} вызовов, ${fmt(a.toolErrors)} с ошибкой`} />
         <Card label="Память модели" value={a.modelRssMB ? `${(a.modelRssMB / 1024).toFixed(1)} ГБ` : '—'} hint={a.modelName ?? undefined} />
       </div>

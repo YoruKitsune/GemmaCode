@@ -88,6 +88,16 @@ export function SettingsDialog() {
               <button onClick={() => void pick('binary')}>Выбрать…</button>
             </div>
           </label>
+          <label className="field">
+            <span>Ускорение генерации (спекулятивный декодинг)</span>
+            <select value={s.speculative ?? ''} onChange={(e) => set({ speculative: (e.target.value || undefined) as Settings['server']['speculative'] })} disabled={usingUrl}>
+              <option value="">По умолчанию (ngram-simple)</option>
+              <option value="none">Выключено</option>
+              <option value="ngram-simple">ngram-simple</option>
+              <option value="ngram-map-k">ngram-map-k</option>
+            </select>
+            <span className="muted small-text">Черновик берётся из уже встреченного текста, без второй модели и без лишней памяти. Сильно ускоряет правку файлов и повторы, на свободном тексте скорость прежняя.</span>
+          </label>
         </details>
 
         <h3>Работа</h3>
@@ -112,7 +122,7 @@ export function SettingsDialog() {
             </select>
           </label>
         </div>
-        <p className="muted small-text">Права применяются к новым сессиям. Модель перезапускается при смене файла, контекста или адреса.</p>
+        <p className="muted small-text">Права применяются к новым сессиям. Модель перезапускается при смене файла, контекста, адреса или режима ускорения.</p>
       </div>
       <div className="modal-actions">
         <button className="ghost" onClick={close}>
