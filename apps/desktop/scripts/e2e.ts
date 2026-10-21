@@ -457,6 +457,46 @@ await step('после перезагрузки окна сессия на ме�
   assert((await page.locator('.chat-title').textContent()) !== null, 'нет заголовка');
 });
 
+await step('первый запуск: окно предлагает скачать модель, прогресс, модель подключается', async () => {
+  const { createHash, randomBytes } = await import('node:crypto');
+  const body = randomBytes(40_000_000);
+  const spec = { id: 'e2e', title: 'Gemma 4 E2B (проверка)', repo: 'o/r', revision: 'rev', license: 'Apache-2.0', files: [{ name: 'gemma-e2e-Q4_K_M.gguf', role: 'model' as const, size: body.length, sha256: createHash('sha256').update(body).digest('hex') }] };
+  // медленный «Hugging Face»: отдаёт файл кусками, чтобы полоса прогресса успела появиться
+  const hf = createServer((_req, res) => {
+    res.writeHead(200, { 'content-length': body.length });
+    let off = 0;
+    const tick = () => {
+      if (off >= body.length) return void res.end();
+      res.write(body.subarray(off, off + 4_000_000));
+      off += 4_000_000;
+      setTimeout(tick, 60);
+    };
+    tick();
+  });
+  await new Promise<void>((r) => hf.listen(0, '127.0.0.1', r));
+  const home2 = mkdtempSync(join(tmpdir(), 'gc-e2e-home2-'));
+  const host2 = new AgentHost({ home: home2, version: 'e2e', platform: { trash: async () => undefined }, backendFactory: () => null, modelSource: { endpoint: `http://127.0.0.1:${(hf.address() as { port: number }).port}`, spec } });
+  const ws2 = await serveWebSocket(host2, 0);
+  const p2 = await ctx.newPage();
+  try {
+    await p2.goto(`http://127.0.0.1:${webPort}/?ws=${ws2.port}&project=${encodeURIComponent(project)}`);
+    await p2.getByRole('heading', { name: 'Нужна модель' }).waitFor({ timeout: 8000 });
+    assert((await p2.getByText(/дальше работает без интернета/).count()) > 0, 'нет пояснения про офлайн');
+    await p2.getByRole('button', { name: /Скачать/ }).click();
+    await p2.getByRole('progressbar').or(p2.locator('.progress-bar')).first().waitFor({ timeout: 8000 });
+    await p2.screenshot({ path: join(out, '11-model-download.png') });
+    await p2.getByText('Модель скачана и подключена').waitFor({ timeout: 20000 });
+    assert((await p2.getByRole('heading', { name: 'Нужна модель' }).count()) === 0, 'блок загрузки не скрылся');
+    const info = await host2.call('app.init', {});
+    assert(info.configured && info.settings.server.modelFile?.endsWith('gemma-e2e-Q4_K_M.gguf'), 'модель не подключена в настройках');
+  } finally {
+    await p2.close();
+    await ws2.close();
+    await host2.shutdown();
+    hf.close();
+  }
+});
+
 await step('в консоли окна нет ошибок', async () => {
   const real = consoleErrors.filter((e) => !/favicon/.test(e));
   assert(real.length === 0, real.join('\n'));

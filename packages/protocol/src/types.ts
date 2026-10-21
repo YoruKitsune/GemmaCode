@@ -27,6 +27,39 @@ export interface Settings {
   server: ServerSettings;
 }
 
+/** Загрузка модели при первом запуске (Hugging Face, продолжение после обрыва, проверка SHA-256). */
+export interface ModelFileInfo {
+  name: string;
+  role: 'model' | 'mmproj';
+  state: 'missing' | 'partial' | 'ready';
+  bytes: number;
+  size: number;
+}
+
+export interface ModelProgress {
+  file: string;
+  phase: 'downloading' | 'verifying' | 'done';
+  received: number;
+  total: number;
+  /** Всё выбранное вместе: уже скачано и общий размер, байт. */
+  overallReceived: number;
+  overallTotal: number;
+  bytesPerSec: number;
+  attempt: number;
+}
+
+export interface ModelStatus {
+  title: string;
+  repo: string;
+  license: string;
+  dir: string;
+  files: ModelFileInfo[];
+  downloading: boolean;
+  progress?: ModelProgress;
+  /** Последняя ошибка загрузки; сбрасывается новым запуском. */
+  error?: string;
+}
+
 export interface AppInfo {
   version: string;
   platform: string;
@@ -312,6 +345,11 @@ export interface Methods {
   'app.init': { params: Record<string, never>; result: AppInfo };
   'settings.set': { params: Partial<Settings>; result: Settings };
   'models.scan': { params: Record<string, never>; result: FoundModel[] };
+  'model.status': { params: Record<string, never>; result: ModelStatus };
+  /** Запускает загрузку в фоне (ход виден по событиям `model.progress`); готовые файлы подключаются в настройки сами. */
+  'model.download': { params: { withMmproj: boolean }; result: ModelStatus };
+  /** Останавливает загрузку, скачанное остаётся и докачается при следующем запуске. */
+  'model.cancel': { params: Record<string, never>; result: ModelStatus };
 
   'project.open': { params: { path: string }; result: ProjectState };
   'project.forget': { params: { path: string }; result: null };
@@ -392,6 +430,9 @@ export type TurnEvent =
 
 export interface HostEvents {
   'backend.status': { status: BackendStatus; message?: string; model?: string };
+  'model.progress': ModelProgress;
+  'model.done': { modelFile: string; mmproj?: string };
+  'model.error': { message: string; code: string };
   /** Ход начался: окно показывает сообщение пользователя до первых событий модели. */
   'turn.start': { sessionId: string; item: FeedItem };
   'turn.event': { sessionId: string; event: TurnEvent };

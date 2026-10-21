@@ -517,3 +517,73 @@ test('предпросмотр: HTML подтягивает локальные �
   await assert.rejects(host.call('fs.previewHtml', { path: '../outside.html' }));
   await host.shutdown();
 });
+
+test('первый запуск: загрузка модели в фоне, события, модель подключается в настройки, остановка и офлайн-повтор', async () => {
+  const { createHash, randomBytes } = await import('node:crypto');
+  const { createServer } = await import('node:http');
+  const model = randomBytes(1_200_000);
+  const proj = randomBytes(300_000);
+  const sha = (b: Buffer) => createHash('sha256').update(b).digest('hex');
+  const spec = {
+    id: 't', title: 'Тестовая модель', repo: 'o/r', revision: 'rev1', license: 'Apache-2.0',
+    files: [
+      { name: 'gemma-test-Q4_K_M.gguf', role: 'model' as const, size: model.length, sha256: sha(model) },
+      { name: 'mmproj-test.gguf', role: 'mmproj' as const, size: proj.length, sha256: sha(proj) },
+    ],
+  };
+  const server = createServer((req, res) => {
+    const b = req.url!.endsWith('mmproj-test.gguf') ? proj : model;
+    res.writeHead(200, { 'content-length': b.length });
+    res.end(b);
+  });
+  await new Promise<void>((r) => server.listen(0, '127.0.0.1', r));
+  const endpoint = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
+  const home = mkdtempSync(join(tmpdir(), 'gc-home-'));
+  const host = new AgentHost({ home, modelSource: { endpoint, spec }, backendFactory: () => null, ptyLoader: async () => { throw new Error('нет pty'); } });
+  const events: { name: string; data: any }[] = [];
+  host.onEvent((name, data) => events.push({ name, data }));
+
+  const before = await host.call('model.status', {});
+  assert.deepEqual(before.files.map((f) => f.state), ['missing', 'missing']);
+  assert.equal(before.license, 'Apache-2.0');
+  assert.equal((await host.call('app.init', {})).configured, false);
+
+  const started = await host.call('model.download', { withMmproj: true });
+  assert.equal(started.downloading, true);
+  await until(() => events.some((e) => e.name === 'model.done'), 8000);
+  const prog = events.filter((e) => e.name === 'model.progress');
+  assert.ok(prog.length > 0);
+  const last = prog.at(-1)!.data;
+  assert.equal(last.overallTotal, model.length + proj.length);
+  const done = events.find((e) => e.name === 'model.done')!.data;
+  assert.equal(done.modelFile, join(home, '.gemmacode', 'models', 'gemma-test-Q4_K_M.gguf'));
+  const info = await host.call('app.init', {});
+  assert.equal(info.configured, true);
+  assert.equal(info.settings.server.modelFile, done.modelFile);
+  assert.equal(info.settings.server.mmproj, done.mmproj);
+  const after = await host.call('model.status', {});
+  assert.deepEqual(after.files.map((f) => f.state), ['ready', 'ready']);
+  assert.equal(after.downloading, false);
+
+  // сервера нет, файлы на месте: повторный запуск сразу завершается и не требует сети
+  await new Promise<void>((r) => server.close(() => r()));
+  events.length = 0;
+  await host.call('model.download', { withMmproj: true });
+  await until(() => events.some((e) => e.name === 'model.done'), 4000);
+  assert.ok(!events.some((e) => e.name === 'model.error'));
+  await host.shutdown();
+});
+
+test('загрузка модели: ошибка сети отдаётся событием и статусом, остановка не считается ошибкой', async () => {
+  const spec = { id: 't', title: 'T', repo: 'o/r', revision: 'rev1', license: 'Apache-2.0', files: [{ name: 'm.gguf', role: 'model' as const, size: 10, sha256: 'ab'.repeat(32) }] };
+  const home = mkdtempSync(join(tmpdir(), 'gc-home-'));
+  const host = new AgentHost({ home, modelSource: { endpoint: 'http://127.0.0.1:1', spec }, backendFactory: () => null, ptyLoader: async () => { throw new Error('нет pty'); } });
+  const events: { name: string; data: any }[] = [];
+  host.onEvent((name, data) => events.push({ name, data }));
+  await host.call('model.download', { withMmproj: false });
+  await host.call('model.cancel', {});
+  await until(() => events.some((e) => e.name === 'model.error'), 4000);
+  assert.equal(events.find((e) => e.name === 'model.error')!.data.code, 'aborted');
+  assert.equal((await host.call('model.status', {})).error, undefined);
+  await host.shutdown();
+});

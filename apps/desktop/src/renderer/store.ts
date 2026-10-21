@@ -5,6 +5,7 @@ import type {
   BackendStatus,
   BrowserState,
   CommandInfo,
+  ModelStatus,
   FileChange,
   GitStatus,
   ProjectState,
@@ -44,6 +45,8 @@ export interface State {
   /** Изменения сессии для вкладки «Изменения» и бейджа. */
   changes: FileChange[];
   changesScope: 'all' | number;
+  /** Модель по умолчанию: что скачано и как идёт загрузка. */
+  model: ModelStatus | null;
   settingsOpen: boolean;
   quickOpen: boolean;
   confirm: { title: string; text: string; ok: string; danger?: boolean; run(): void } | null;
@@ -84,6 +87,7 @@ let state: State = {
   browser: null,
   changes: [],
   changesScope: 'all',
+  model: null,
   settingsOpen: false,
   quickOpen: false,
   confirm: null,

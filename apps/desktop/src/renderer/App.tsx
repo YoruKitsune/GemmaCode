@@ -6,6 +6,7 @@ import { Composer } from './components/Composer';
 import { Feed } from './components/Feed';
 import { IconDiff, IconPanel } from './components/icons';
 import { RightPanel } from './components/RightPanel';
+import { ModelSetup } from './components/ModelSetup';
 import { SettingsDialog } from './components/SettingsDialog';
 import { Sidebar } from './components/Sidebar';
 import { Welcome } from './components/Welcome';
@@ -78,8 +79,11 @@ function Workspace() {
         </header>
         {project && project.warnings.length > 0 && <div className="banner warn">{project.warnings.join(' · ')}</div>}
         {info && !info.configured && backend.status !== 'ready' && (
-          <div className="banner">
-            Модель не выбрана. <button className="link" onClick={() => setState({ settingsOpen: true })}>Открыть настройки</button>
+          <div className="banner-block">
+            <ModelSetup />
+            <p className="muted small-text">
+              Уже есть модель? <button className="link" onClick={() => setState({ settingsOpen: true })}>Открыть настройки</button> и укажите файл GGUF или адрес llama-server.
+            </p>
           </div>
         )}
         {backend.status === 'error' && (

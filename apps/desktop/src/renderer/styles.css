@@ -412,3 +412,13 @@ details summary { cursor: pointer; color: var(--text-dim); margin: 6px 0; }
 .stats-table th, .stats-table td { text-align: left; padding: 3px 6px; border-bottom: 1px solid var(--border); }
 .stats-table th { color: var(--text-dim); font-weight: 500; }
 .err-text { color: var(--err); }
+
+.banner-block { padding: 12px 16px; background: var(--accent-bg); flex: none; }
+.model-setup { display: flex; flex-direction: column; gap: 8px; }
+.model-setup h3 { margin: 0; font-size: 14px; }
+.model-setup.compact { padding: 8px 0 12px; }
+.model-setup .row { display: flex; gap: 8px; align-items: center; }
+.model-setup .check { display: flex; gap: 6px; align-items: center; }
+.progress-bar { height: 8px; border-radius: 4px; background: rgba(127, 127, 127, 0.28); overflow: hidden; }
+.progress-bar > span { display: block; height: 100%; background: var(--accent); transition: width 0.25s linear; }
+.error-text { color: var(--err); margin: 0; }

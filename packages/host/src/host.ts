@@ -29,6 +29,8 @@ import {
 } from '@gemmacode/core';
 import type {
   AppInfo,
+  ModelProgress,
+  ModelStatus,
   ApprovalAnswer,
   ApprovalRequestWire,
   AttachmentRef,
@@ -56,6 +58,7 @@ import { patchUserConfig, readAppMemory, scanModels, writeAppMemory } from './co
 import { ProjectFiles, toPosix, type Platform } from './files.ts';
 import { collectStats, countDiffLines, StatsStore, type TurnRecord } from './stats.ts';
 import { Terminals } from './terminal.ts';
+import { DEFAULT_MODEL, DownloadError, ModelDownloader, type ModelSpec } from './model-download.ts';
 
 export interface HostOptions {
   home?: string;
@@ -72,6 +75,13 @@ export interface HostOptions {
    * Chrome или Chromium, если он найден (иначе браузера нет, а инструмент `browser` не предлагается модели).
    */
   browserFactory?: (config: GemmaConfig) => Promise<PageFactory>;
+  /** Откуда и что качать как модель по умолчанию (тесты подставляют свой сервер и малый файл). */
+  modelSource?: { endpoint?: string; spec?: ModelSpec };
+}
+
+interface ModelJob {
+  ctl: AbortController;
+  progress?: ModelProgress;
 }
 
 type Listener = (event: string, data: unknown) => void;
@@ -209,6 +219,8 @@ export class AgentHost {
   private activeTurn: LiveSession | undefined;
   private readonly terminals: Terminals;
   private readonly handlers: Handlers;
+  private modelJob: ModelJob | undefined;
+  private modelError: string | undefined;
 
   constructor(opts: HostOptions = {}) {
     this.opts = opts;
@@ -580,6 +592,64 @@ export class AgentHost {
     return { available: true, tabs: p.browser.tabList(), active: p.browser.activeTab?.id ?? null };
   }
 
+  // ---------- модель по умолчанию ----------
+
+  private downloader(onProgress?: (p: import('./model-download.ts').Progress) => void): ModelDownloader {
+    return new ModelDownloader({
+      dir: join(this.home, '.gemmacode', 'models'),
+      ...(this.opts.modelSource?.endpoint ? { endpoint: this.opts.modelSource.endpoint } : {}),
+      spec: this.opts.modelSource?.spec ?? DEFAULT_MODEL,
+      ...(onProgress ? { onProgress } : {}),
+    });
+  }
+
+  private modelStatus(): ModelStatus {
+    const d = this.downloader();
+    return {
+      title: d.spec.title,
+      repo: d.spec.repo,
+      license: d.spec.license,
+      dir: d.dir,
+      files: d.status(),
+      downloading: Boolean(this.modelJob),
+      ...(this.modelJob?.progress ? { progress: this.modelJob.progress } : {}),
+      ...(this.modelError ? { error: this.modelError } : {}),
+    };
+  }
+
+  private startModelDownload(withMmproj: boolean): ModelStatus {
+    if (this.modelJob) return this.modelStatus();
+    this.modelError = undefined;
+    const roles: ('model' | 'mmproj')[] = withMmproj ? ['model', 'mmproj'] : ['model'];
+    const job: ModelJob = { ctl: new AbortController() };
+    this.modelJob = job;
+    const files = this.downloader().spec.files.filter((f) => roles.includes(f.role));
+    const overallTotal = files.reduce((n, f) => n + f.size, 0);
+    const d = this.downloader((p) => {
+      const before = files.slice(0, files.findIndex((f) => f.name === p.file)).reduce((n, f) => n + f.size, 0);
+      const progress: ModelProgress = { ...p, overallReceived: before + p.received, overallTotal };
+      job.progress = progress;
+      this.emit('model.progress', progress);
+    });
+    void d.download(roles, job.ctl.signal).then(
+      async (r) => {
+        this.modelJob = undefined;
+        if (!r.model) return;
+        // Скачанная модель становится выбранной: адрес чужого сервера снимаем, иначе настройки её бы не использовали.
+        await this.handlers['settings.set']({ server: { modelFile: r.model, mmproj: r.mmproj, url: undefined } });
+        this.emit('model.done', { modelFile: r.model, ...(r.mmproj ? { mmproj: r.mmproj } : {}) });
+      },
+      (e: unknown) => {
+        this.modelJob = undefined;
+        const code = e instanceof DownloadError ? e.code : 'error';
+        if (code === 'aborted') return void this.emit('model.error', { message: 'Загрузка остановлена. Скачанное сохранено, продолжится с места остановки.', code });
+        this.modelError = (e as Error).message;
+        this.emit('model.error', { message: this.modelError, code });
+      },
+    );
+    return this.modelStatus();
+  }
+
   // ---------- методы ----------
 
   private buildHandlers(): Handlers {
@@ -605,6 +675,12 @@ export class AgentHost {
         return this.appInfo().settings;
       },
       'models.scan': () => scanModels(this.home),
+      'model.status': () => this.modelStatus(),
+      'model.download': ({ withMmproj }) => this.startModelDownload(withMmproj),
+      'model.cancel': () => {
+        this.modelJob?.ctl.abort();
+        return this.modelStatus();
+      },
       'project.open': ({ path }) => this.openProject(path),
       'project.forget': ({ path }) => {
         const mem = readAppMemory(this.home);

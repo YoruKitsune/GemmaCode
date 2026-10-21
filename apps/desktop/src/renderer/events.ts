@@ -1,5 +1,5 @@
 import { applyTurnEvent, type HostEvents, type TurnEvent } from '@gemmacode/protocol';
-import { pickAndOpenProject, refreshChanges, refreshGit, showTab } from './actions';
+import { pickAndOpenProject, refreshChanges, refreshGit, refreshModel, showTab } from './actions';
 import { bridge } from './bridge';
 import { getState, setState, toast } from './store';
 
@@ -36,6 +36,23 @@ let fsTimer: ReturnType<typeof setTimeout> | undefined;
 export function startEvents(): () => void {
   return bridge.onEvent((name, data) => {
     switch (name) {
+      case 'model.progress': {
+        const d = data as HostEvents['model.progress'];
+        setState((s) => (s.model ? { model: { ...s.model, downloading: true, progress: d } } : {}));
+        break;
+      }
+      case 'model.done': {
+        toast('Модель скачана и подключена', 'info');
+        void bridge.call('app.init', {}).then((info) => setState({ info }), () => undefined);
+        void refreshModel();
+        break;
+      }
+      case 'model.error': {
+        const d = data as HostEvents['model.error'];
+        if (d.code !== 'aborted') toast(d.message, 'error');
+        void refreshModel();
+        break;
+      }
       case 'backend.status': {
         const d = data as HostEvents['backend.status'];
         setState({ backend: d });

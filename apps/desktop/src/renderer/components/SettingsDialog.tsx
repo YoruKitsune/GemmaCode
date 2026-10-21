@@ -4,6 +4,7 @@ import { saveSettings } from '../actions';
 import { bridge } from '../bridge';
 import { setState, useStore } from '../store';
 import { Modal } from './Dialogs';
+import { ModelSetup } from './ModelSetup';
 
 const CONTEXTS = [8192, 16384, 32768];
 
@@ -60,6 +61,7 @@ export function SettingsDialog() {
             ))}
           </div>
         )}
+        <ModelSetup compact />
         <label className="field">
           <span>Файл модели (GGUF)</span>
           <div className="field-row">

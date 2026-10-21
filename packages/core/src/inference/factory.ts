@@ -29,4 +29,4 @@ export function createBackend(s: ServerSettings, contextSize: number): Inference
 
 export const NO_MODEL_HELP =
   'Модель не настроена. Укажите --server-url http://127.0.0.1:8080 (запущенный llama-server) или --model-file путь.gguf ' +
-  '(запустим llama-server сами), либо пропишите "server" в ~/.gemmacode/config.json. Автоматическая загрузка модели появится в M4.';
+  '(запустим llama-server сами), либо пропишите "server" в ~/.gemmacode/config.json. В окне приложения модель по умолчанию (Gemma 4 E2B) скачивается кнопкой при первом запуске.';

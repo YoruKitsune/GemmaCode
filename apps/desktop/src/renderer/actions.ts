@@ -18,8 +18,24 @@ export async function boot(): Promise<void> {
   const info = await guard(bridge.call('app.init', {}));
   if (!info) return setState({ booted: true });
   setState({ info, booted: true });
+  void refreshModel();
   const auto = params.get('project') ?? (bridge.kind === 'electron' ? info.lastProject : undefined);
   if (auto) await openProject(auto, params.get('project') ? undefined : info.lastSession);
+}
+
+export async function refreshModel(): Promise<void> {
+  const model = await bridge.call('model.status', {}).catch(() => undefined);
+  if (model) setState({ model });
+}
+
+export async function downloadModel(withMmproj: boolean): Promise<void> {
+  const model = await guard(bridge.call('model.download', { withMmproj }));
+  if (model) setState({ model });
+}
+
+export async function cancelModelDownload(): Promise<void> {
+  const model = await guard(bridge.call('model.cancel', {}));
+  if (model) setState({ model });
 }
 
 export async function pickAndOpenProject(): Promise<void> {
