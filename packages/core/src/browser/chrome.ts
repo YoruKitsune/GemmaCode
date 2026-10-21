@@ -138,7 +138,8 @@ export class ChromeFactory implements PageFactory {
       '--mute-audio',
       '--hide-scrollbars',
       ...(opts.headed ? [] : ['--headless=new']),
-      ...(process.getuid?.() === 0 ? ['--no-sandbox'] : []),
+      // без песочницы Chromium только для root и по явному разрешению (контейнеры CI без пользовательских пространств имён)
+      ...(process.getuid?.() === 0 || process.env.GEMMACODE_CHROME_NO_SANDBOX === '1' ? ['--no-sandbox'] : []),
       ...(opts.args ?? []),
       'about:blank',
     ];

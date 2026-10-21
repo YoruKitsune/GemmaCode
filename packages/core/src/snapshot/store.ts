@@ -1,5 +1,5 @@
 import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { dirname, join, relative } from 'node:path';
+import { dirname, join, relative, sep } from 'node:path';
 import { unifiedDiff } from './diff.ts';
 
 interface Entry {
@@ -62,7 +62,8 @@ export class SnapshotStore {
   record(abs: string): void {
     let cp = this.checkpoints[this.checkpoints.length - 1];
     if (!cp) cp = this.begin('session');
-    const rel = relative(this.root, abs);
+    // ключи манифеста с прямыми слэшами на всех системах: так их видят окно и список изменённых файлов
+    const rel = relative(this.root, abs).split(sep).join('/');
     if (rel.startsWith('..') || cp.files[rel]) return;
     if (existsSync(abs)) {
       const blob = join(dirname(this.manifestPath(cp.id)), 'files', rel);

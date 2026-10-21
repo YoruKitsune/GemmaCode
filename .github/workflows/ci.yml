@@ -18,6 +18,8 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm test
+        env:
+          GEMMACODE_CHROME_NO_SANDBOX: '1'
       - name: Сборка окна
         run: npm run build --workspace @gemmacode/desktop
 
