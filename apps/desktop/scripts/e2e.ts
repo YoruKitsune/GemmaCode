@@ -2,7 +2,7 @@
 // заданными ответами), окно в headless Chromium. Скриншоты кладутся в E2E_OUT (по умолчанию apps/desktop/e2e-out).
 import { execFileSync } from 'node:child_process';
 import { createServer } from 'node:http';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { extname, join, resolve } from 'node:path';
 import { deflateSync } from 'node:zlib';
@@ -83,6 +83,20 @@ function jpegSize(buf: Buffer): { w: number; h: number } {
   throw new Error('не JPEG');
 }
 
+/** CHROME_PATH, иначе Chromium из Playwright; если версия не совпала с установленным браузером, любой chromium-* из PLAYWRIGHT_BROWSERS_PATH. */
+function chromePath(): string | undefined {
+  if (process.env.CHROME_PATH) return process.env.CHROME_PATH;
+  const own = chromium.executablePath();
+  if (existsSync(own)) return own;
+  const base = process.env.PLAYWRIGHT_BROWSERS_PATH;
+  if (base && existsSync(base)) {
+    for (const d of readdirSync(base).filter((n) => /^chromium-\d+$/.test(n)).sort().reverse()) {
+      for (const sub of ['chrome-linux/chrome', 'chrome-linux64/chrome']) if (existsSync(join(base, d, sub))) return join(base, d, sub);
+    }
+  }
+  return undefined;
+}
+
 const results: { name: string; ok: boolean; error?: string }[] = [];
 async function step(name: string, fn: () => Promise<void>): Promise<void> {
   try {
@@ -144,7 +158,7 @@ await new Promise<void>((r) => web.listen(0, '127.0.0.1', r));
 const webPort = (web.address() as { port: number }).port;
 
 const browser = await chromium.launch({
-  executablePath: process.env.CHROME_PATH ?? '/opt/pw-browsers/chromium-1194/chrome-linux/chrome',
+  executablePath: chromePath(),
   args: ['--no-sandbox', '--autoplay-policy=no-user-gesture-required'],
 });
 const ctx = await browser.newContext({ viewport: { width: 1360, height: 860 }, colorScheme: 'dark', locale: 'ru-RU' });
