@@ -1,0 +1,69 @@
+# Упаковка GemmaCode. Сборка без подписи и нотаризации (сертификата Apple нет, подписи Windows тоже): см. docs/M4.md.
+# Модель в установщик не входит: окно скачивает её при первом запуске. llama-server входит: закреплённая сборка b11669
+# кладётся командой `npm run fetch:llama` в resources/llama/<платформа>-<архитектура>/ и копируется ниже в ресурсы.
+appId: dev.gemmacode.desktop
+productName: GemmaCode
+copyright: GemmaCode
+artifactName: GemmaCode-${version}-${os}-${arch}.${ext}
+directories:
+  output: release
+  buildResources: build
+# Электрон берём из node_modules: так сборка на этой машине не качает его ещё раз
+electronDist: ../../node_modules/electron/dist
+electronVersion: 45.0.0
+files:
+  - dist/main/**
+  - dist/renderer/**
+  - dist/host/host.cjs
+  - package.json
+asar: true
+# нативный модуль терминала не читается из asar
+asarUnpack:
+  - "**/node_modules/@lydell/**"
+extraResources:
+  - from: resources/licenses
+    to: licenses
+mac:
+  category: public.app-category.developer-tools
+  target:
+    - target: dmg
+      arch: [arm64]
+    - target: zip
+      arch: [arm64]
+  # Сертификата Apple нет: ad-hoc подпись ("-") держит печать пакета целой (без неё Gatekeeper пишет «повреждён»), но не делает издателя известным.
+  identity: "-"
+  hardenedRuntime: false
+  gatekeeperAssess: false
+  extraResources:
+    - from: resources/llama/darwin-arm64
+      to: llama/darwin-arm64
+dmg:
+  title: GemmaCode ${version}
+  sign: false
+linux:
+  category: Development
+  maintainer: GemmaCode <noreply@gemmacode.invalid>
+  target:
+    - target: AppImage
+      arch: [x64]
+    - target: deb
+      arch: [x64]
+  extraResources:
+    - from: resources/llama/linux-x64
+      to: llama/linux-x64
+deb:
+  depends: [libgtk-3-0, libnotify4, libnss3, libxss1, libxtst6, xdg-utils, libatspi2.0-0, libuuid1, libsecret-1-0]
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  # Подписи Windows нет: SmartScreen предупредит о неизвестном издателе
+  signAndEditExecutable: false
+  extraResources:
+    - from: resources/llama/win32-x64
+      to: llama/win32-x64
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  deleteAppDataOnUninstall: false

@@ -45,8 +45,10 @@ const sitePort = (site.address() as { port: number }).port;
 sitePortRef = sitePort;
 
 const port = 9300 + Math.floor(Math.random() * 500);
-const args = ['.', '--no-sandbox', `--remote-debugging-port=${port}`];
-const app = spawn(bin, args, { cwd: root, env: { ...process.env, HOME: home, USERPROFILE: home }, stdio: ['ignore', 'pipe', 'pipe'] });
+// SMOKE_PACKAGED=1: ELECTRON_BIN указывает на собранное приложение (GemmaCode.app/Contents/MacOS/GemmaCode), каталог приложения не передаём
+const packaged = process.env.SMOKE_PACKAGED === '1';
+const args = [...(packaged ? [] : ['.']), '--no-sandbox', `--remote-debugging-port=${port}`];
+const app = spawn(bin, args, { cwd: packaged ? tmpdir() : root, env: { ...process.env, HOME: home, USERPROFILE: home }, stdio: ['ignore', 'pipe', 'pipe'] });
 let log = '';
 app.stdout.on('data', (d) => (log += d));
 app.stderr.on('data', (d) => (log += d));
@@ -136,6 +138,20 @@ try {
     // ниже попадёт в отчёт
   }
   check('терминал (node-pty в utility-процессе)', term);
+  // Только для собранного приложения и при заданной SMOKE_MODEL: движок поднимается из ресурсов приложения (закреплённая сборка llama-server)
+  if (packaged && process.env.SMOKE_MODEL) {
+    await page.evaluate((modelFile) => window.gemmacode.call('settings.set', { server: { modelFile, url: undefined } }), process.env.SMOKE_MODEL);
+    let up = false;
+    try {
+      await page.waitForFunction(() => document.body.innerText.includes('Модель готова'), undefined, { timeout: 120000 });
+      up = true;
+    } catch {
+      // отчёт ниже
+    }
+    const procs = execFileSync('ps', ['-axo', 'command']).toString().split('\n').filter((l) => /llama-server/.test(l) && l.includes(home) === false);
+    const mine = procs.find((l) => l.includes('.app/Contents/Resources/llama/') || l.includes('/resources/llama/'));
+    check('встроенный llama-server из ресурсов приложения загрузил модель', up && Boolean(mine), `${up ? '' : 'модель не поднялась; '}${procs.join(' | ').slice(0, 300)}`);
+  }
   const real = errors.filter((e) => !/Autofill|favicon/.test(e));
   check('в консоли окна нет ошибок', real.length === 0, real.join('\n'));
 

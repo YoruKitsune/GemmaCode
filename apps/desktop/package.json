@@ -1,6 +1,6 @@
 {
   "name": "@gemmacode/desktop",
-  "version": "0.0.0",
+  "version": "0.4.0",
   "private": true,
   "description": "Оболочка GemmaCode: Electron, React, TypeScript",
   "main": "dist/main/main.js",
@@ -13,9 +13,17 @@
     "start": "npm run build && electron .",
     "typecheck": "tsc -p tsconfig.main.json --noEmit && tsc -p tsconfig.renderer.json --noEmit",
     "test:e2e": "node --experimental-strip-types scripts/e2e.ts",
-    "test:smoke": "node --experimental-strip-types scripts/electron-smoke.ts"
+    "test:smoke": "node --experimental-strip-types scripts/electron-smoke.ts",
+    "fetch:llama": "node scripts/fetch-llama.mjs",
+    "dist:dir": "npm run build && npm run fetch:llama && electron-builder --dir",
+    "dist:mac": "npm run build && npm run fetch:llama -- --platform darwin --arch arm64 && electron-builder --mac --arm64",
+    "dist:linux": "npm run build && npm run fetch:llama -- --platform linux --arch x64 && electron-builder --linux --x64",
+    "dist:win": "npm run build && npm run fetch:llama -- --platform win32 --arch x64 && electron-builder --win --x64"
   },
   "dependencies": {
+    "@lydell/node-pty": "^1.1.0"
+  },
+  "devDependencies": {
     "@codemirror/commands": "^6.7.0",
     "@codemirror/lang-css": "^6.3.0",
     "@codemirror/lang-html": "^6.4.0",
@@ -26,30 +34,34 @@
     "@codemirror/language": "^6.10.0",
     "@codemirror/state": "^6.4.0",
     "@codemirror/view": "^6.34.0",
-    "@lezer/highlight": "^1.2.0",
-    "@xterm/addon-fit": "^0.10.0",
-    "@xterm/xterm": "^5.5.0",
-    "dompurify": "^3.2.0",
-    "marked": "^14.1.0",
-    "pdfjs-dist": "^4.10.38",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1"
-  },
-  "devDependencies": {
     "@gemmacode/core": "*",
     "@gemmacode/host": "*",
     "@gemmacode/protocol": "*",
+    "@lezer/highlight": "^1.2.0",
     "@types/node": "^22.0.0",
     "@types/react": "^18.3.0",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.0",
+    "@xterm/addon-fit": "^0.10.0",
+    "@xterm/xterm": "^5.5.0",
     "concurrently": "^9.0.0",
     "cross-env": "^7.0.3",
+    "dompurify": "^3.2.0",
     "electron": "^45.0.0",
+    "electron-builder": "^26.15.3",
     "esbuild": "^0.25.0",
+    "marked": "^14.1.0",
+    "pdfjs-dist": "^4.10.38",
     "playwright-core": "^1.50.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
     "typescript": "^5.6.0",
     "vite": "^5.4.0",
     "wait-on": "^8.0.0"
-  }
+  },
+  "author": {
+    "name": "GemmaCode",
+    "email": "noreply@gemmacode.invalid"
+  },
+  "license": "UNLICENSED"
 }

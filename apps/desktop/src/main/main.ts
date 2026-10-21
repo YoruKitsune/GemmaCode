@@ -1,4 +1,5 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, session, shell, utilityProcess, type UtilityProcess } from 'electron';
+import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 // Окно (renderer) и сервис агента (utility-процесс) не знают друг о друге: главный процесс только пересылает сообщения,
@@ -10,11 +11,17 @@ let hostReady: Promise<void> | null = null;
 let seq = 0;
 const waiting = new Map<number, { resolve(v: unknown): void; reject(e: Error): void }>();
 
+/** Закреплённая сборка llama-server: в установщике она в ресурсах, в режиме разработки в `apps/desktop/resources` (после `npm run fetch:llama`). */
+function bundledLlamaEnv(): Record<string, string> {
+  const dir = app.isPackaged ? join(process.resourcesPath, 'llama') : join(__dirname, '../../resources/llama');
+  return existsSync(dir) ? { GEMMACODE_LLAMA_DIR: dir } : {};
+}
+
 function startHost(): void {
   host = utilityProcess.fork(join(__dirname, '../host/host.cjs'), [], {
     serviceName: 'GemmaCode agent',
     stdio: 'inherit',
-    env: { ...process.env, GEMMACODE_VERSION: app.getVersion() },
+    env: { ...process.env, GEMMACODE_VERSION: app.getVersion(), ...bundledLlamaEnv() },
   });
   hostReady = new Promise((resolve) => {
     host!.on('message', (m: any) => {

@@ -7,3 +7,6 @@ bench/results/
 bench/.cache/
 eval/results/
 apps/desktop/e2e-out/
+apps/desktop/resources/llama/
+apps/desktop/.cache/
+apps/desktop/release/
