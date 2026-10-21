@@ -38,3 +38,26 @@ test('проверка синтаксиса для режима loop ловит 
   const good = await execCommand(SYNTAX_CHECK, { cwd: dir, sandbox: new NoSandbox() });
   assert.equal(good.exitCode, 0, good.output);
 });
+
+test('счётчик откатов: HTTP 500 на разборе вызова один раз уходит в schema-режим и не даёт ошибку', async () => {
+  const tasks = ALL_TASKS.filter((t) => t.id === 'gen-slugify');
+  const oracle = new OracleBackend(tasks);
+  let thrown = false;
+  const flaky = {
+    status: 'ready' as const,
+    start: () => oracle.start(),
+    stop: () => oracle.stop(),
+    async *chat(request: Parameters<OracleBackend['chat']>[0]) {
+      if (!thrown && request.tools?.length) {
+        thrown = true;
+        throw new Error('HTTP 500 Failed to parse tool call arguments as JSON');
+      }
+      yield* oracle.chat(request);
+    },
+  };
+  const { results, summary } = await runEval({ backend: flaky as never, tasks, sandbox: new NoSandbox() });
+  assert.equal(results[0]?.fallbacks, 1);
+  assert.notEqual(results[0]?.doneReason, 'error');
+  assert.equal(summary.fallbacks, 1);
+  assert.match(renderReport('x', {}, results, summary), /Откатов на schema после ошибки разбора вызова: 1/);
+});

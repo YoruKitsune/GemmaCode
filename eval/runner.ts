@@ -45,6 +45,7 @@ export interface TaskResult {
   steps: number;
   toolCalls: number;
   invalidCalls: number;
+  fallbacks: number;
   promptTokens: number;
   generatedTokens: number;
   tokensPerSecond: number;
@@ -62,6 +63,7 @@ export interface EvalSummary {
   invalidCallRate: number;
   avgSeconds: number;
   avgTokensPerSecond: number;
+  fallbacks: number;
 }
 
 /**
@@ -102,6 +104,7 @@ export async function runEval(o: EvalOptions): Promise<{ results: TaskResult[]; 
       let iterations = 0;
       let reviewRounds = 0;
       let reviewIssues = 0;
+      let fallbacks = 0;
       let doneReason = '';
       let failure: string | undefined;
       for await (const e of runTask(agent, task.prompt, {
@@ -113,6 +116,7 @@ export async function runEval(o: EvalOptions): Promise<{ results: TaskResult[]; 
           doneReason = e.reason;
           if (e.reason === 'error') failure = e.message;
         }
+        if (e.type === 'fallback') fallbacks++;
         if (e.type === 'review') reviewIssues += e.issues.length;
         if (e.type === 'run_done') {
           outcome = e.outcome;
@@ -132,6 +136,7 @@ export async function runEval(o: EvalOptions): Promise<{ results: TaskResult[]; 
         steps: agent.stats.steps,
         toolCalls: agent.stats.toolCalls,
         invalidCalls: agent.stats.invalidCalls,
+        fallbacks,
         promptTokens: agent.stats.promptTokens,
         generatedTokens: agent.stats.generatedTokens,
         tokensPerSecond: agent.stats.genTokensPerSecond,
@@ -141,7 +146,7 @@ export async function runEval(o: EvalOptions): Promise<{ results: TaskResult[]; 
       };
     } catch (e) {
       result = {
-        ...base, passed: false, outcome: 'crashed', doneReason: 'crashed', iterations: 0, reviewRounds: 0, reviewIssues: 0, steps: 0, toolCalls: 0, invalidCalls: 0,
+        ...base, passed: false, outcome: 'crashed', doneReason: 'crashed', iterations: 0, reviewRounds: 0, reviewIssues: 0, steps: 0, toolCalls: 0, invalidCalls: 0, fallbacks: 0,
         promptTokens: 0, generatedTokens: 0, tokensPerSecond: 0, seconds: (Date.now() - t0) / 1000, failure: (e as Error).message,
       };
     }
@@ -174,6 +179,7 @@ export function summarize(results: TaskResult[]): EvalSummary {
     bySuite: by('suite'),
     invalidCallRate: calls ? invalid / calls : 0,
     avgSeconds: results.length ? results.reduce((n, r) => n + r.seconds, 0) / results.length : 0,
+    fallbacks: results.reduce((n, r) => n + r.fallbacks, 0),
     avgTokensPerSecond: speeds.length ? speeds.reduce((a, b) => a + b, 0) / speeds.length : 0,
   };
 }
@@ -187,6 +193,8 @@ export function renderReport(label: string, config: Record<string, unknown>, res
     '',
     `**Итого: ${pct(summary.passed, summary.total)}.** Невалидных вызовов инструментов: ${(summary.invalidCallRate * 100).toFixed(1)}%. Среднее время на задачу: ${summary.avgSeconds.toFixed(0)} с, средняя скорость генерации ${summary.avgTokensPerSecond.toFixed(1)} ток/с.`,
     '',
+    `Откатов на schema после ошибки разбора вызова: ${summary.fallbacks}.`,
+    '',
     '| Набор | Решено |',
     '|---|---|',
     ...Object.entries(summary.bySuite).map(([k, v]) => `| ${k} | ${pct(v.passed, v.n)} |`),
@@ -198,8 +206,8 @@ export function renderReport(label: string, config: Record<string, unknown>, res
   ];
   const edit = summary.bySuite.edit30;
   if (edit) lines.push(`Гейт M1 (20 из 30 на правку кода): ${edit.passed >= 20 && edit.n === 30 ? 'пройден' : edit.n < 30 ? 'не оценивался полностью' : 'не пройден'} (${edit.passed}/${edit.n}).`, '');
-  lines.push('| Задача | Итог | Шаги | Вызовы | Невалидных | Итераций | Время, с | Причина остановки |', '|---|---|---|---|---|---|---|---|');
-  for (const r of results) lines.push(`| ${r.id} | ${r.passed ? 'да' : 'нет'} | ${r.steps} | ${r.toolCalls} | ${r.invalidCalls} | ${r.iterations} | ${r.seconds.toFixed(0)} | ${r.doneReason} |`);
+  lines.push('| Задача | Итог | Шаги | Вызовы | Невалидных | Откатов | Итераций | Время, с | Причина остановки |', '|---|---|---|---|---|---|---|---|---|');
+  for (const r of results) lines.push(`| ${r.id} | ${r.passed ? 'да' : 'нет'} | ${r.steps} | ${r.toolCalls} | ${r.invalidCalls} | ${r.fallbacks} | ${r.iterations} | ${r.seconds.toFixed(0)} | ${r.doneReason} |`);
   const failed = results.filter((r) => !r.passed && r.failure);
   if (failed.length) {
     lines.push('', '## Провалы', '');
