@@ -258,3 +258,25 @@ test('системный промпт: соглашения проекта (ES-�
   const none = tempProject({ 'main.py': 'print(1)\n' });
   assert.doesNotMatch(mkAgent(none, [{ text: 'ok' }]).agent.systemPrompt, /ES modules|CommonJS/);
 });
+
+test('сервер отклонил битый JSON в вызове: шаг повторяется в режиме schema', async () => {
+  const dir = tempProject({ 'a.txt': 'hello' });
+  const { agent, backend } = mkAgent(dir, [
+    { throws: 'llama-server: HTTP 500 {"error":{"message":"Failed to parse tool call arguments as JSON"}}' },
+    { text: JSON.stringify({ tool: 'read_file', arguments: { path: 'a.txt' } }) },
+    { text: 'Прочитал: hello' },
+  ]);
+  const ev = await run(agent, 'что в a.txt?');
+  assert.ok(ev.some((e) => e.type === 'fallback'));
+  assert.equal(done(ev).reason, 'completed');
+  assert.ok(backend.requests[1]!.jsonSchema, 'повтор должен идти с JSON-схемой');
+  assert.ok(!backend.requests[2]!.jsonSchema, 'следующий шаг возвращается к родному режиму');
+  // другие ошибки движка по-прежнему завершают ход
+  const { agent: a2 } = mkAgent(dir, [{ throws: 'llama-server: HTTP 503 busy' }]);
+  assert.equal(done(await run(a2, 'x')).reason, 'error');
+});
+
+test('соглашения проекта подсказываются и в проекте без .js-файлов', () => {
+  const dir = tempProject({ 'package.json': '{"type":"module"}' });
+  assert.match(mkAgent(dir, [{ text: 'ok' }]).agent.systemPrompt, /ES modules/);
+});

@@ -20,6 +20,7 @@ export type AgentEvent =
   | { type: 'tool_call'; id: string; name: string; summary: string; args: Record<string, unknown> }
   | { type: 'approval'; id: string; answer: ApprovalAnswer | 'auto-denied'; reason: string }
   | { type: 'tool_result'; id: string; name: string; content: string; isError: boolean; touched: string[]; ms: number }
+  | { type: 'fallback'; reason: string }
   | { type: 'invalid_call'; name: string; error: string; attempt: number }
   | { type: 'compaction'; stage: 'elide' | 'summary'; before: number; after: number }
   | { type: 'timings'; timings: Timings }

@@ -147,17 +147,34 @@ export class Agent {
 
       let turnText = '';
       const calls: ToolCall[] = [];
+      let strategy: Strategy = this.strategy;
       try {
-        const req = this.strategy.request(this.system, this.messages, this.o.registry.definitions(), { maxTokens: this.o.maxTokens, temperature: this.o.temperature });
-        for await (const chunk of this.o.backend.chat(req, signal)) {
-          if (chunk.type === 'text') {
-            turnText += chunk.delta;
-            if (this.strategy.streamsText) yield { type: 'text', delta: chunk.delta };
-          } else if (chunk.type === 'reasoning') yield { type: 'reasoning', delta: chunk.delta };
-          else if (chunk.type === 'toolCall') calls.push(chunk.call);
-          else if (chunk.type === 'done' && chunk.timings) {
-            this.recordTimings(chunk.timings);
-            yield { type: 'timings', timings: chunk.timings };
+        for (let attempt = 0; ; attempt++) {
+          try {
+            turnText = '';
+            calls.length = 0;
+            const req = strategy.request(this.system, this.messages, this.o.registry.definitions(), { maxTokens: this.o.maxTokens, temperature: this.o.temperature });
+            for await (const chunk of this.o.backend.chat(req, signal)) {
+              if (chunk.type === 'text') {
+                turnText += chunk.delta;
+                if (strategy.streamsText) yield { type: 'text', delta: chunk.delta };
+              } else if (chunk.type === 'reasoning') yield { type: 'reasoning', delta: chunk.delta };
+              else if (chunk.type === 'toolCall') calls.push(chunk.call);
+              else if (chunk.type === 'done' && chunk.timings) {
+                this.recordTimings(chunk.timings);
+                yield { type: 'timings', timings: chunk.timings };
+              }
+            }
+            break;
+          } catch (e) {
+            // Сервер отклонил ответ с битым JSON в аргументах вызова. Повтор с теми же параметрами дал бы то же самое,
+            // поэтому этот шаг делаем в режиме schema: ответ ограничен грамматикой и валиден по построению.
+            if (attempt === 0 && strategy.mode === 'native' && /Failed to parse tool call|parse tool call arguments/i.test((e as Error).message) && !signal?.aborted) {
+              yield { type: 'fallback', reason: 'The server could not parse the tool call; retrying this step with schema-constrained output.' };
+              strategy = new SchemaStrategy();
+              continue;
+            }
+            throw e;
           }
         }
       } catch (e) {
@@ -171,7 +188,7 @@ export class Agent {
       this.lastContextMessages = this.messages.length + 1;
       this.stats.steps++;
 
-      const turn = this.strategy.finish(turnText, calls);
+      const turn = strategy.finish(turnText, calls);
       if (turn.malformed) {
         this.push({ role: 'assistant', content: turn.text });
         this.push({ role: 'user', content: 'Your reply was not valid JSON of the required form. Reply with {"tool": ..., "arguments": {...}}.' });
@@ -181,7 +198,7 @@ export class Agent {
         }
         continue;
       }
-      if (!this.strategy.streamsText && turn.text) yield { type: 'text', delta: turn.text };
+      if (!strategy.streamsText && turn.text) yield { type: 'text', delta: turn.text };
 
       this.push({ role: 'assistant', content: turn.text, ...(turn.calls.length ? { toolCalls: turn.calls } : {}) });
       if (turn.calls.length === 0) {

@@ -13,7 +13,7 @@ export function tempProject(files: Record<string, string> = {}): string {
   return dir;
 }
 
-export type Scripted = { text?: string; calls?: { name: string; args: unknown }[]; timings?: { promptTokens: number; cachedTokens: number; predictedTokens: number } };
+export type Scripted = { throws?: string; text?: string; calls?: { name: string; args: unknown }[]; timings?: { promptTokens: number; cachedTokens: number; predictedTokens: number } };
 
 /** Движок с заранее заданными ответами: по одному на каждый вызов chat. Запросы сохраняются для проверок. */
 export class ScriptedBackend implements InferenceBackend {
@@ -34,6 +34,7 @@ export class ScriptedBackend implements InferenceBackend {
     const entry = this.script[this.i++];
     if (!entry) throw new Error('script exhausted');
     const s = typeof entry === 'function' ? entry(request) : entry;
+    if (s.throws) throw new Error(s.throws);
     if (request.jsonSchema) {
       // режим schema: весь ответ приходит JSON-текстом
       yield { type: 'text', delta: s.text ?? '' };

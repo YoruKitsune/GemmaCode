@@ -81,11 +81,11 @@ function detectCommands(cwd: string): string[] {
 }
 
 /** Система модулей JavaScript и тестовый раннер: типичная причина «код написан не в том стиле». */
-export function detectConventions(cwd: string, files: string[]): string[] {
+export function detectConventions(cwd: string, _files: string[] = []): string[] {
   const out: string[] = [];
-  const hasJs = files.some((f) => /\.(m?js|cjs|jsx)$/.test(f));
+  // Подсказка нужна и пустому проекту: именно там модель по умолчанию выбирает CommonJS.
   const pkg = join(cwd, 'package.json');
-  if (hasJs && existsSync(pkg)) {
+  if (existsSync(pkg)) {
     try {
       const p = JSON.parse(readFileSync(pkg, 'utf8')) as { type?: string; scripts?: Record<string, string> };
       out.push(p.type === 'module' ? 'JavaScript uses ES modules: write import/export, never require/module.exports; local imports need the .js extension.' : 'JavaScript uses CommonJS (require / module.exports) unless a file is .mjs.');

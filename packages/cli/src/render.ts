@@ -64,6 +64,9 @@ export class Renderer {
         this.line(`  ${e.isError ? red('✗') : green('✓')} ${dim(first)}${more > 0 ? dim(` (+${more} строк)`) : ''}`);
         break;
       }
+      case 'fallback':
+        this.line(dim(`↯ ${e.reason}`));
+        break;
       case 'invalid_call':
         this.line(`  ${yellow('!')} ${dim(truncateMiddle(e.error, 140))}`);
         break;
