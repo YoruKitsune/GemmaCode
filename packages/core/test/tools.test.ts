@@ -141,15 +141,17 @@ test('пути: выход через симлинк и запретный сп�
 test('shell: вывод, код выхода, таймаут, окружение без секретов', async () => {
   const dir = tempProject();
   const ctx = mkCtx(dir);
-  const ok = await shell.run({ command: 'echo hi && pwd' }, ctx);
+  // на Windows команды идут через cmd.exe: тот же сценарий в его синтаксисе
+  const win = process.platform === 'win32';
+  const ok = await shell.run({ command: win ? 'echo hi && cd' : 'echo hi && pwd' }, ctx);
   assert.match(ok.content, /hi/);
   assert.match(ok.content, /\[exit code 0\]/);
-  const fail = await shell.run({ command: 'echo oops >&2; exit 3' }, ctx);
+  const fail = await shell.run({ command: win ? 'echo oops 1>&2 & exit 3' : 'echo oops >&2; exit 3' }, ctx);
   assert.ok(fail.isError && /exit code 3/.test(fail.content) && /oops/.test(fail.content));
-  const slow = await shell.run({ command: 'sleep 5', timeout_s: 1 }, ctx);
+  const slow = await shell.run({ command: win ? 'ping -n 6 127.0.0.1 > nul' : 'sleep 5', timeout_s: 1 }, ctx);
   assert.ok(slow.isError && /timed out/.test(slow.content));
   process.env.MY_API_TOKEN = 'leak';
-  const env = await shell.run({ command: 'echo "[$MY_API_TOKEN]"' }, ctx);
+  const env = await shell.run({ command: win ? 'if defined MY_API_TOKEN (echo [leak]) else (echo [])' : 'echo "[$MY_API_TOKEN]"' }, ctx);
   assert.match(env.content, /\[\]/);
   delete process.env.MY_API_TOKEN;
 });

@@ -89,7 +89,10 @@ test('политика: без песочницы ОС каждая команд
   assert.equal(decide('ask', skillTool, { name: 'x' }), 'allow');
 });
 
-test('Seatbelt: профиль ограничивает запись, сеть и секреты', () => {
+// профиль Seatbelt нужен только на macOS: пути в тесте POSIX
+const macOnly = { skip: process.platform === 'win32' };
+
+test('Seatbelt: профиль ограничивает запись, сеть и секреты', macOnly, () => {
   const prof = seatbeltProfile({ cwd: '/work/proj', network: false }, '/Users/u');
   assert.match(prof, /\(deny network\*\)/);
   assert.match(prof, /\(deny file-write\*\)/);
@@ -102,7 +105,7 @@ test('Seatbelt: профиль ограничивает запись, сеть �
   assert.deepEqual(spec.args.slice(-3), ['/bin/sh', '-c', 'echo hi']);
 });
 
-test('Seatbelt: секреты закрыты и по реальному пути, если home лежит за симлинком', () => {
+test('Seatbelt: секреты закрыты и по реальному пути, если home лежит за симлинком', macOnly, () => {
   const real = mkdtempSync(join(tmpdir(), 'gc-real-'));
   const link = join(tmpdir(), `gc-link-${process.pid}`);
   symlinkSync(real, link);
