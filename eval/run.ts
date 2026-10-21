@@ -2,8 +2,9 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
-import { AttachedBackend, LlamaServerBackend, type InferenceBackend, type ServerConfig } from '@gemmacode/core';
+import { AttachedBackend, DEFAULT_SPECULATIVE, LlamaServerBackend, type InferenceBackend, type ServerConfig } from '@gemmacode/core';
 import { renderReport, runEval } from './runner.ts';
+import { StepLog } from './step-log.ts';
 import { ALL_TASKS, SUITES } from './tasks/index.ts';
 import type { Suite } from './types.ts';
 
@@ -24,6 +25,8 @@ const HELP = `Оценка агента GemmaCode на наборах задач
   --review                    само-ревью собственных правок
   --max-iterations N          попыток в режиме loop/review (по умолчанию 4)
   --max-steps N               шагов на одну попытку (по умолчанию 25)
+  --spec none|ngram-simple|ngram-map-k   спекулятивный декодинг своего llama-server (по умолчанию как в приложении)
+  --step-log FILE             журнал шагов JSONL: prompt_n, cache_n, predicted_n, draft_n, инструменты
   --context N                 размер контекста (по умолчанию 16384)
   --label NAME                метка прогона в имени отчёта
   --keep                      не удалять каталоги задач
@@ -33,7 +36,7 @@ const { values: v } = parseArgs({
   options: {
     'server-url': { type: 'string' }, 'model-file': { type: 'string' }, mmproj: { type: 'string' }, binary: { type: 'string' }, port: { type: 'string' },
     suite: { type: 'string' }, only: { type: 'string' }, limit: { type: 'string' }, 'tool-mode': { type: 'string' }, loop: { type: 'boolean' }, review: { type: 'boolean' },
-    'max-iterations': { type: 'string' }, 'max-steps': { type: 'string' }, context: { type: 'string' }, label: { type: 'string' }, keep: { type: 'boolean' }, help: { type: 'boolean' },
+    'max-iterations': { type: 'string' }, 'max-steps': { type: 'string' }, context: { type: 'string' }, label: { type: 'string' }, spec: { type: 'string' }, 'step-log': { type: 'string' }, keep: { type: 'boolean' }, help: { type: 'boolean' },
   },
 });
 if (v.help || (!v['server-url'] && !v['model-file'])) {
@@ -53,7 +56,7 @@ else {
     contextSize,
     kvCacheType: 'q8_0',
     reasoning: 'off',
-    speculative: 'none',
+    speculative: (v.spec ?? DEFAULT_SPECULATIVE) as ServerConfig['speculative'],
   };
   backend = new LlamaServerBackend(cfg);
 }
@@ -82,6 +85,7 @@ try {
     contextSize,
     ...(v['max-iterations'] ? { maxIterations: Number(v['max-iterations']) } : {}),
     ...(v.keep ? { keepDirs: true } : {}),
+    ...(v['step-log'] ? { stepLog: new StepLog(v['step-log'], v.spec ?? (v['server-url'] ? 'external' : DEFAULT_SPECULATIVE)) } : {}),
     log: (l) => console.log(l),
   });
   const label = v.label ?? `${toolMode}${v.loop ? '-loop' : ''}${v.review ? '-review' : ''}`;

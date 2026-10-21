@@ -13,6 +13,7 @@ import {
   type ToolCallMode,
 } from '@gemmacode/core';
 import { materialize, verifyTask } from './materialize.ts';
+import type { StepLog } from './step-log.ts';
 import type { Category, EvalTask } from './types.ts';
 
 export interface EvalOptions {
@@ -29,6 +30,8 @@ export interface EvalOptions {
   skillRouting?: SkillRouting;
   sandbox?: SandboxRunner;
   keepDirs?: boolean;
+  /** Журнал шагов (timings сервера по каждому шагу цикла). */
+  stepLog?: StepLog;
   log?: (line: string) => void;
 }
 
@@ -107,11 +110,13 @@ export async function runEval(o: EvalOptions): Promise<{ results: TaskResult[]; 
       let fallbacks = 0;
       let doneReason = '';
       let failure: string | undefined;
+      o.stepLog?.startTurn(task.id);
       for await (const e of runTask(agent, task.prompt, {
         ...(o.loop ? { verify: loopVerifyFor(task) } : {}),
         ...(o.review ? { review: true } : {}),
         ...(o.maxIterations ? { maxIterations: o.maxIterations } : {}),
       })) {
+        o.stepLog?.event(e as never);
         if (e.type === 'done') {
           doneReason = e.reason;
           if (e.reason === 'error') failure = e.message;
@@ -124,6 +129,7 @@ export async function runEval(o: EvalOptions): Promise<{ results: TaskResult[]; 
           reviewRounds = e.reviewRounds;
         }
       }
+      o.stepLog?.endTurn(doneReason);
       const verdict = await verifyTask(task, dir, sandbox);
       result = {
         ...base,

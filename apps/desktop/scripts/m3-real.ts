@@ -1,11 +1,13 @@
 // Проверка M3 с настоящей моделью: поднимает llama-server через сервис (как приложение), гоняет два сценария несколько раз
 // и печатает таблицу. Запуск: node --experimental-strip-types scripts/m3-real.ts [--runs 3] [--model файл.gguf] [--mmproj файл.gguf]
+// Для замеров M4: --spec none|ngram-simple|ngram-map-k (иначе как в приложении), --step-log файл.jsonl (timings сервера по шагам).
 // Браузер: Chrome/Chromium ищется сам, путь можно задать через CHROME_PATH.
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { AgentHost } from '../../../packages/host/src/host.ts';
 import { scanModels } from '../../../packages/host/src/config-store.ts';
+import { StepLog } from '../../../eval/step-log.ts';
 
 const arg = (name: string): string | undefined => {
   const i = process.argv.indexOf(`--${name}`);
@@ -15,6 +17,8 @@ const runs = Number(arg('runs') ?? 3);
 const out = arg('out') ?? join(tmpdir(), 'm3-real');
 mkdirSync(out, { recursive: true });
 
+const spec = arg('spec');
+const stepLog = arg('step-log') ? new StepLog(arg('step-log')!, spec ?? 'default') : undefined;
 const serverUrl = arg('server'); // готовый OpenAI-совместимый сервер вместо запуска llama-server (для отладки скрипта)
 let modelFile = arg('model');
 let mmproj = arg('mmproj');
@@ -30,11 +34,14 @@ console.log(`Модель: ${serverUrl ?? modelFile}\nmmproj: ${mmproj ?? 'не�
 const home = mkdtempSync(join(tmpdir(), 'gc-m3-home-'));
 const host = new AgentHost({ home, version: 'm3-real', platform: { trash: async () => undefined } });
 const events: { name: string; data: any }[] = [];
-host.onEvent((name, data) => events.push({ name, data }));
+host.onEvent((name, data) => {
+  events.push({ name, data });
+  if (name === 'turn.event') stepLog?.event(data.event);
+});
 host.onEvent((name, data) => {
   if (name === 'approval.request') void host.call('approval.answer', { id: data.id, answer: 'allow' });
 });
-await host.call('settings.set', { server: serverUrl ? { url: serverUrl } : { modelFile, ...(mmproj ? { mmproj } : {}) }, contextSize: 16384 });
+await host.call('settings.set', { server: serverUrl ? { url: serverUrl } : { modelFile, ...(mmproj ? { mmproj } : {}), ...(spec ? { speculative: spec as 'none' } : {}) }, contextSize: 16384 });
 
 const PAGE = `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Greeting page</title>
 <style>body{font:18px sans-serif;padding:24px}</style></head>
@@ -93,6 +100,7 @@ for (const sc of scenarios.filter((x) => only.includes(x.name[0]!))) {
     const s = await host.call('session.create', {});
     await host.call('session.options', { id: s.id, mode: 'auto-edit' });
     const t0 = Date.now();
+    stepLog?.startTurn(`${sc.name[0]}${i}`);
     await host.call('chat.send', { sessionId: s.id, text: sc.prompt, attachments: [] });
     let timedOut = false;
     while (!events.some((e) => e.name === 'turn.end')) {
@@ -103,6 +111,7 @@ for (const sc of scenarios.filter((x) => only.includes(x.name[0]!))) {
       }
       await new Promise((r) => setTimeout(r, 250));
     }
+    stepLog?.endTurn(timedOut ? 'timeout' : 'done');
     const tools = events.filter((e) => e.name === 'turn.event' && e.data.event.type === 'tool_call').map((e) => e.data.event.name as string);
     const nudges = events.filter((e) => e.name === 'turn.event' && e.data.event.type === 'nudge').length;
     const errors = events.filter((e) => e.name === 'turn.event' && e.data.event.type === 'tool_result' && e.data.event.isError).length;
