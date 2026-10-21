@@ -19,14 +19,17 @@ test('конвейер оценки: «идеальная модель» реш�
   assert.match(renderReport('oracle', {}, results, summary), /Гейт M1 \(20 из 30 на правку кода\): пройден/);
 });
 
-test('конвейер оценки: режим loop с видимыми тестами и ревью на «идеальной модели»', async () => {
+// проверка синтаксиса режима loop и сценарии оценки написаны на POSIX sh; стенд оценки запускают на macOS и Linux
+const posixOnly = { skip: process.platform === 'win32' ? 'стенд оценки использует POSIX sh' : false };
+
+test('конвейер оценки: режим loop с видимыми тестами и ревью на «идеальной модели»', posixOnly, async () => {
   const tasks = ALL_TASKS.filter((t) => ['fix-last-n', 'gen-slugify', 'rename-function'].includes(t.id));
   const { results } = await runEval({ backend: new OracleBackend(tasks), tasks, sandbox: new NoSandbox(), loop: true, maxIterations: 2 });
   assert.ok(results.every((r) => r.passed), JSON.stringify(results.map((r) => [r.id, r.outcome, r.failure])));
   assert.ok(results.every((r) => r.outcome === 'verified'));
 });
 
-test('проверка синтаксиса для режима loop ловит ошибку в любом файле, а не только в первом', async () => {
+test('проверка синтаксиса для режима loop ловит ошибку в любом файле, а не только в первом', posixOnly, async () => {
   const dir = mkdtempSync(join(tmpdir(), 'gc-syntax-'));
   mkdirSync(join(dir, 'src'));
   writeFileSync(join(dir, 'package.json'), '{"type":"module"}');
