@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: Тег релиза, например v0.5.0 (пусто: только сборка без релиза)
+        description: 'Тег релиза, например v0.5.0 (пусто — только сборка без релиза)'
         required: false
         default: ''
 
