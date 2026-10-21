@@ -4,11 +4,12 @@ import { baseName } from '../format';
 import { setState, useStore, type RightTab } from '../store';
 import { ChangesTab } from './ChangesTab';
 import { FilesTab } from './FilesTab';
-import { IconClose, IconDiff, IconFolder, IconTerminal } from './icons';
+import { IconClose, IconDiff, IconFolder, IconGlobe, IconTerminal } from './icons';
 
 // редактор и терминал тяжёлые (CodeMirror, xterm): грузим при первом открытии, а не при старте окна
 const FileViewer = lazy(() => import('./FileViewer').then((m) => ({ default: m.FileViewer })));
 const TerminalTab = lazy(() => import('./TerminalTab').then((m) => ({ default: m.TerminalTab })));
+const BrowserTab = lazy(() => import('./BrowserTab').then((m) => ({ default: m.BrowserTab })));
 
 export function RightPanel() {
   const tab = useStore((s) => s.tab);
@@ -19,6 +20,8 @@ export function RightPanel() {
   const dragging = useRef(false);
   const termSeen = useRef(false);
   if (tab === 'terminal') termSeen.current = true;
+  const browserSeen = useRef(false);
+  if (tab === 'browser') browserSeen.current = true;
 
   const onResizeStart = useCallback((e: React.PointerEvent) => {
     dragging.current = true;
@@ -44,6 +47,7 @@ export function RightPanel() {
         {tabBtn('files', 'Файлы', <IconFolder size={14} />)}
         {tabBtn('changes', 'Изменения', <IconDiff size={14} />, changeCount)}
         {tabBtn('terminal', 'Терминал', <IconTerminal size={14} />)}
+        {tabBtn('browser', 'Браузер', <IconGlobe size={14} />)}
         {openFiles.map((p) => (
           <span key={p} className={`tab file-tab${tab === `file:${p}` ? ' active' : ''}`} onClick={() => showTab(`file:${p}`)} title={p} role="tab">
             {baseName(p)}
@@ -65,6 +69,13 @@ export function RightPanel() {
           <div className="pane" hidden={tab !== 'terminal'}>
             <Suspense fallback={<div className="pad muted">Загрузка…</div>}>
               <TerminalTab visible={tab === 'terminal'} />
+            </Suspense>
+          </div>
+        )}
+        {(tab === 'browser' || browserSeen.current) && (
+          <div className="pane" hidden={tab !== 'browser'}>
+            <Suspense fallback={<div className="pad muted">Загрузка…</div>}>
+              <BrowserTab visible={tab === 'browser'} />
             </Suspense>
           </div>
         )}

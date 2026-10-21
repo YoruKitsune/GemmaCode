@@ -30,6 +30,12 @@ export const IconImage = (p: P) => <Svg {...p}><rect x="2" y="3" width="12" heig
 export const IconAudio = (p: P) => <Svg {...p}><path d="M3 8v0M5.5 5.5v5M8 3.5v9M10.5 6v4M13 7.5v1" /></Svg>;
 export const IconShield = (p: P) => <Svg {...p}><path d="M8 2l5 2v4c0 3-2.2 5-5 6-2.8-1-5-3-5-6V4z" /></Svg>;
 
+export const IconGlobe = (p: P) => <Svg {...p}><circle cx="8" cy="8" r="5.5" /><path d="M2.5 8h11M8 2.5c1.8 1.7 2.6 3.5 2.6 5.5S9.800 11.800 8 13.500C6.200 11.800 5.400 10 5.400 8S6.200 4.200 8 2.500z" /></Svg>;
+export const IconBack = (p: P) => <Svg {...p}><path d="M13 8H3.500M7.500 4L3.500 8l4 4" /></Svg>;
+export const IconForward = (p: P) => <Svg {...p}><path d="M3 8h9.500M8.500 4l4 4-4 4" /></Svg>;
+export const IconReload = (p: P) => <Svg {...p}><path d="M13 8a5 5 0 1 1-1.500-3.500M13 2.500v3h-3" /></Svg>;
+export const IconChart = (p: P) => <Svg {...p}><path d="M2.500 13.500h11M4.500 11V7.500M8 11V4M11.500 11V8.500" /></Svg>;
+
 export function Spinner({ size = 14 }: { size?: number }) {
   return <span className="spinner" style={{ width: size, height: size }} aria-label="Выполняется" />;
 }

@@ -120,6 +120,13 @@ const project = mkdtempSync(join(tmpdir(), 'gc-e2e-proj-'));
 writeFileSync(join(project, 'utils.js'), 'export const sum = (a, b) => a - b;\nexport const mul = (a, b) => a * b;\n');
 writeFileSync(join(project, 'README.md'), '# Демо\n\nМаленький проект для проверки окна.\n');
 writeFileSync(join(project, 'package.json'), JSON.stringify({ name: 'demo', type: 'module', scripts: { test: 'node --test' } }, null, 2));
+mkdirSync(join(project, 'site'));
+writeFileSync(
+  join(project, 'site', 'index.html'),
+  `<!doctype html><title>Demo site</title><style>body{font:16px sans-serif;margin:0;padding:90px 20px}button{position:absolute;left:20px;top:20px;width:200px;height:60px}</style>
+<button onclick="document.title='Greeted'">Greet</button><h1>Greeting</h1><p id="out">Hello, wolrd!</p>
+<script>console.error('typo in greeting')</script>`,
+);
 const g = (...a: string[]) => execFileSync('git', ['-c', 'user.email=t@t', '-c', 'user.name=t', ...a], { cwd: project, stdio: 'pipe' });
 g('init', '-q', '-b', 'main');
 g('add', '.');
@@ -139,6 +146,12 @@ const fake = await startFakeServer([
   // F: авто-правки без вопросов
   { call: { name: 'write_file', args: { path: 'notes.txt', content: 'заметка\n' } } },
   { text: 'Создал notes.txt.' },
+  // G: агент в браузере
+  { call: { name: 'browser', args: { action: 'open', url: 'site/index.html' } } },
+  { call: { name: 'browser', args: { action: 'console' } } },
+  { call: { name: 'edit_file', args: { path: 'site/index.html', old_string: 'wolrd', new_string: 'world' } } },
+  { call: { name: 'browser', args: { action: 'reload' } } },
+  { text: 'Опечатка в приветствии исправлена, страница показывает «Hello, world!».' },
 ]);
 
 const host = new AgentHost({ home, version: 'e2e', platform: { trash: async () => undefined } });
@@ -306,6 +319,38 @@ await step('терминал: настоящий shell в корне проек�
   await page.waitForFunction(() => document.querySelector('.xterm-rows')?.textContent?.includes('e2e-42'), undefined, { timeout: 8000 });
   assert((await page.locator('.xterm-rows').textContent())?.includes(project.split('/').pop()!), 'терминал не в папке проекта');
   await shot('08-terminal');
+});
+
+await step('браузер: адрес из проекта открывается, кадры идут, клик пользователя доходит до страницы', async () => {
+  await page.getByRole('tab', { name: /Браузер/ }).click();
+  const url = page.getByLabel('Адрес');
+  await url.fill('site/index.html');
+  await url.press('Enter');
+  await page.locator('.btab-title', { hasText: 'Demo site' }).waitFor({ timeout: 15000 });
+  const frame = page.locator('img.browser-frame');
+  await frame.waitFor({ state: 'visible', timeout: 10000 });
+  await page.waitForFunction(() => (document.querySelector('img.browser-frame') as HTMLImageElement)?.naturalWidth > 100, undefined, { timeout: 8000 });
+  await frame.click({ position: { x: 60, y: 40 } });
+  await page.locator('.btab-title', { hasText: 'Greeted' }).waitFor({ timeout: 8000 });
+  assert((await url.inputValue()).includes('site/index.html'), `адрес: ${await url.inputValue()}`);
+  await shot('12-browser-user');
+});
+
+await step('агент в браузере: открыл страницу, прочитал консоль, исправил файл, перезагрузил и проверил', async () => {
+  await page.getByRole('tab', { name: /Файлы/ }).click();
+  await send(page, 'Открой site/index.html в браузере, проверь приветствие и исправь опечатку');
+  await page.getByText('показывает «Hello, world!»').waitFor({ timeout: 30000 });
+  assert(readFileSync(join(project, 'site', 'index.html'), 'utf8').includes('Hello, world!'), 'файл не исправлен');
+  assert((await page.getByRole('tab', { name: /Браузер/ }).getAttribute('aria-selected')) === 'true', 'вкладка браузера не открылась сама');
+  const toolText = (n: number) => {
+    const m = fake.requests.at(-1).messages.filter((x: { role: string }) => x.role === 'tool');
+    return String(m[m.length - 4 + n].content);
+  };
+  assert(toolText(0).includes('Hello, wolrd!'), 'первый снимок не содержит опечатку');
+  assert(toolText(1).includes('typo in greeting'), 'консоль не прочитана');
+  assert(toolText(3).includes('Hello, world!'), 'после перезагрузки нет исправленного текста');
+  await page.locator('.tool-card', { hasText: 'browser' }).first().waitFor({ timeout: 4000 }).catch(() => undefined);
+  await shot('13-browser-agent');
 });
 
 await step('настройки: модель, контекст, права', async () => {

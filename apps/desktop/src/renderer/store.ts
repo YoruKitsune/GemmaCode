@@ -3,6 +3,7 @@ import type {
   AppInfo,
   ApprovalRequestWire,
   BackendStatus,
+  BrowserState,
   CommandInfo,
   FileChange,
   GitStatus,
@@ -11,7 +12,7 @@ import type {
   SessionSummary,
 } from '@gemmacode/protocol';
 
-export type RightTab = 'files' | 'changes' | 'terminal' | `file:${string}`;
+export type RightTab = 'files' | 'changes' | 'terminal' | 'browser' | 'stats' | `file:${string}`;
 
 export interface Toast {
   id: number;
@@ -38,6 +39,8 @@ export interface State {
   /** Увеличивается при каждом изменении файлов; окна дерева и вкладок перечитывают данные. */
   fsVersion: number;
   fsPaths: string[];
+  /** Вкладки встроенного браузера (кадры идут отдельной шиной: их десятки в секунду). */
+  browser: BrowserState | null;
   /** Изменения сессии для вкладки «Изменения» и бейджа. */
   changes: FileChange[];
   changesScope: 'all' | number;
@@ -78,6 +81,7 @@ let state: State = {
   git: null,
   fsVersion: 0,
   fsPaths: [],
+  browser: null,
   changes: [],
   changesScope: 'all',
   settingsOpen: false,

@@ -717,7 +717,8 @@ export class AgentHost {
         const u = new URL(target);
         if (u.protocol === 'http:' || u.protocol === 'https:') b.allowHost(u.hostname);
         else if (!b.isAllowed(target)) throw new Error('Файл вне проекта открывать нельзя.');
-        if (newTab || !b.activeTab) await b.newTab();
+        // без newTab переход идёт в активную вкладку (её создаст сам контроллер, если окно ещё поднимает первую)
+        if (newTab) await b.newTab();
         void b.navigate(target).catch(() => undefined);
         return this.browserState(p);
       },

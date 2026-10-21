@@ -1,9 +1,11 @@
 import { applyTurnEvent, type HostEvents, type TurnEvent } from '@gemmacode/protocol';
-import { pickAndOpenProject, refreshChanges, refreshGit } from './actions';
+import { pickAndOpenProject, refreshChanges, refreshGit, showTab } from './actions';
 import { bridge } from './bridge';
-import { setState, toast } from './store';
+import { getState, setState, toast } from './store';
 
 export const termBus = new EventTarget();
+/** Кадры встроенного браузера: идут мимо хранилища, чтобы не перерисовывать окно на каждый кадр. */
+export const browserBus = new EventTarget();
 /** Команды композеру из других частей окна (например, «прикрепить к чату» в дереве файлов). */
 export const composerBus = new EventTarget();
 
@@ -28,6 +30,7 @@ function flush(): void {
   });
 }
 
+let browserShown = false;
 let fsTimer: ReturnType<typeof setTimeout> | undefined;
 
 export function startEvents(): () => void {
@@ -40,11 +43,17 @@ export function startEvents(): () => void {
       }
       case 'turn.start': {
         const d = data as HostEvents['turn.start'];
+        browserShown = false;
         setState((s) => (s.session && s.session.id === d.sessionId ? { session: { ...s.session, feed: [...s.session.feed, d.item], running: true } } : {}));
         break;
       }
       case 'turn.event': {
         const d = data as HostEvents['turn.event'];
+        // агент пошёл в браузер: показываем вкладку один раз за ход, чтобы было видно, что он делает
+        if (d.event.type === 'tool_call' && d.event.name === 'browser' && !browserShown) {
+          browserShown = true;
+          if (getState().tab !== 'browser') showTab('browser');
+        }
         queue.push(d);
         timer ??= setTimeout(flush, 40);
         break;
@@ -84,6 +93,17 @@ export function startEvents(): () => void {
       case 'sessions.changed': {
         const d = data as HostEvents['sessions.changed'];
         setState({ sessions: d.sessions });
+        break;
+      }
+      case 'browser.state':
+        setState({ browser: data as HostEvents['browser.state'] });
+        break;
+      case 'browser.frame':
+        browserBus.dispatchEvent(new CustomEvent('frame', { detail: data }));
+        break;
+      case 'browser.blocked': {
+        const d = data as HostEvents['browser.blocked'];
+        toast(`Переход на ${d.url} заблокирован: ${d.reason.toLowerCase()}. Агент может запросить доступ командой open.`);
         break;
       }
       case 'term.data':

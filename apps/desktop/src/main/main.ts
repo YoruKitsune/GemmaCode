@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, shell, utilityProcess, type UtilityProcess } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, session, shell, utilityProcess, type UtilityProcess } from 'electron';
 import { join } from 'node:path';
 
 // Окно (renderer) и сервис агента (utility-процесс) не знают друг о друге: главный процесс только пересылает сообщения,
@@ -39,10 +39,63 @@ function startHost(): void {
   });
 }
 
-async function handlePlatform(req: { id: number; op: string; path: string }): Promise<void> {
+// ---------- страницы встроенного браузера ----------
+// Страницы агента живут в скрытых окнах с отдельным профилем (без cookies и входов пользователя в сайты). Сервис управляет
+// ими по CDP через webContents.debugger: главный процесс только создаёт страницу и пересылает команды и события.
+
+const AGENT_PARTITION = 'gemmacode-agent-browser';
+const agentPages = new Map<string, BrowserWindow>();
+let pageSeq = 0;
+let agentSessionReady = false;
+
+function prepareAgentSession(): void {
+  if (agentSessionReady) return;
+  agentSessionReady = true;
+  const ses = session.fromPartition(AGENT_PARTITION);
+  ses.setPermissionRequestHandler((_wc, _perm, cb) => cb(false));
+  ses.setPermissionCheckHandler(() => false);
+  ses.on('will-download', (e) => e.preventDefault());
+}
+
+function newAgentPage(): string {
+  prepareAgentSession();
+  const win = new BrowserWindow({
+    show: false,
+    width: 1024,
+    height: 768,
+    frame: false,
+    webPreferences: { partition: AGENT_PARTITION, offscreen: true, sandbox: true, contextIsolation: true, nodeIntegration: false, backgroundThrottling: false, spellcheck: false },
+  });
+  const id = `page${++pageSeq}`;
+  const wc = win.webContents;
+  wc.setFrameRate(30);
+  wc.setUserAgent(wc.getUserAgent().replace(/\sElectron\/\S+/, '').replace(/\sgemmacode\S*/i, ''));
+  wc.setWindowOpenHandler(() => ({ action: 'deny' }));
+  wc.debugger.attach('1.3');
+  wc.debugger.on('message', (_e, method, params) => host?.postMessage({ cdpEvent: { page: id, method, params } }));
+  agentPages.set(id, win);
+  win.on('closed', () => agentPages.delete(id));
+  return id;
+}
+
+async function handlePlatform(req: { id: number; op: string; path?: string; page?: string; method?: string; params?: Record<string, unknown> }): Promise<void> {
   try {
-    if (req.op === 'trash') await shell.trashItem(req.path);
-    host?.postMessage({ platformReply: { id: req.id } });
+    let result: unknown;
+    if (req.op === 'trash') await shell.trashItem(req.path!);
+    else if (req.op === 'browser.newPage') result = newAgentPage();
+    else if (req.op === 'browser.send') {
+      const win = agentPages.get(req.page!);
+      if (!win || win.isDestroyed()) throw new Error('Страница закрыта');
+      result = await win.webContents.debugger.sendCommand(req.method!, req.params ?? {});
+    } else if (req.op === 'browser.close') {
+      const win = agentPages.get(req.page!);
+      agentPages.delete(req.page!);
+      if (win && !win.isDestroyed()) win.destroy();
+    } else if (req.op === 'browser.disposeAll') {
+      for (const w of agentPages.values()) if (!w.isDestroyed()) w.destroy();
+      agentPages.clear();
+    }
+    host?.postMessage({ platformReply: { id: req.id, result } });
   } catch (e) {
     host?.postMessage({ platformReply: { id: req.id, error: (e as Error).message } });
   }
@@ -89,6 +142,8 @@ function createWindow(): void {
   else void win.loadFile(join(__dirname, '../renderer/index.html'));
   win.on('closed', () => {
     win = null;
+    // скрытые окна страниц агента не должны удерживать приложение после закрытия главного окна
+    app.quit();
   });
 }
 
